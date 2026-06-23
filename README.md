@@ -62,15 +62,6 @@ Archive runtime variables:
 - `ARCHIVE_PERSIST_PATH`: optional snapshot path (e.g. `/data/bins.json` on a
   CapRover persistent volume) so the 24-hour archive survives redeploys. Unset
   = in-memory only.
-- `NAVIDROME_URL` (default `https://music.zaur.app`), `NAVIDROME_USER`,
-  `NAVIDROME_PASSWORD`: credentials for the radio. User and password must be
-  set for `/radio/*`; URL alone is not enough.
-- `ADMIN_TOKEN`: shared secret for `/admin/refresh-playlists`. Empty disables
-  admin endpoints entirely.
-- `PLAYLIST_SYNC_INTERVAL_MS`: how often the archive auto-syncs the `all`
-  playlist with the live Navidrome library. Defaults to `900000` (15 min);
-  the archive also runs one sync ~30 s after boot. Set to `0` to disable
-  both the boot sync and the periodic refresh.
 - `ANTHROPIC_API_KEY`: optional; enables the `musings` source (Claude Haiku
   generates dino thoughts ~once an hour). Without it the source is skipped.
 - `ELEVENLABS_API_KEY`: optional; enables the `/tts` proxy so the client can
@@ -102,26 +93,14 @@ console warning pointing at these variables.
 
 ## Dino radio
 
-The bottom-of-page strip is a working audio player that streams tracks from a
-Navidrome library. The user picks a channel (`all`, `news`, `quakes`, `facts`,
-`space`, `birds`) and a pace (`chill`, `normal`, `busy`). Preferences are
-anonymous, saved in `localStorage`, and sent to `/realtime` for the current
-socket only. Pace also throttles how cards spawn so the dino never gets
-overwhelmed.
+The radio widget (top-left) embeds our real station, **Radio Bartek**, via
+AzuraCast's public embed iframe (`radiobartek.com/public/radio_bartek/embed`).
+The station and its library are managed in AzuraCast; dino just hosts the widget.
 
-Audio flows through the archive server: the client calls `/radio/track` for
-the next track id, then `/radio/stream/<id>` to play the bytes. The archive
-proxies Subsonic so Navidrome credentials never reach the browser, and
-forwards `Range` headers so the audio element can seek.
-
-Per-channel playlists are hand-curated in Navidrome's UI. The
-`POST /admin/refresh-playlists` endpoint (auth via `X-Admin-Token`) mirrors
-the entire library into the `all` playlist and ensures an empty shell exists
-for every per-channel playlist matching a category bin (`news`, `quakes`,
-`facts`, `space`, `birds`). Existing per-channel contents are never touched
-— only the names are guaranteed to be present so you have ready destinations
-to drag tracks into. The runtime picker falls back to `all` whenever a
-per-channel playlist is missing or empty.
+> The previous custom radio — an archive-server `/radio/*` Subsonic proxy in
+> front of Navidrome, with per-channel playlists and pace — has been removed.
+> `music.zaur.app` (Navidrome) is still a live, independently-used music server;
+> it is simply no longer wired into dino's radio.
 
 ## Dino thoughts (speech bubble)
 
@@ -139,19 +118,19 @@ courier, no archive. The pattern detector in `messages.ts` also funnels its
 
 ```
 src/
-├── main.ts            # entry point + courier loop (dino ↔ messages)
+├── main.ts            # entry point + dino/terrain orchestration
 ├── world.ts           # animated sky, sun/moon, clouds, hills, ground
 ├── dino.ts            # dino entity + tiny state machine (wander/seek/carry/deliver)
 ├── dinoBubble.ts      # ephemeral speech bubble for dino_thought events
 ├── sprite.ts          # canvas rendering for the dino frames
 ├── spriteFrames.ts    # programmatic pixel-art frames (vendored, no image files)
-├── messages.ts        # floating message cards + category bins (DOM overlay)
+├── textTerrain.ts     # scattered text blocks across the viewport
 ├── weather.ts         # per-visitor weather card + ambient sky state
 └── services/
     └── content.ts     # shared ContentItem types
 
 server/                # standalone npm package (@anthropic-ai/sdk)
-├── server.mjs         # archive API, WebSocket authority, radio proxy, admin
+├── server.mjs         # archive API, WebSocket authority, TTS/SFX proxies
 ├── narrator.mjs       # server-side source scheduler and item picker
 └── sources/           # HN, DEV.to, quakes, facts, musings, space, birds
 
@@ -237,7 +216,7 @@ script is `deploy/caprover.sh`.
 - Space: [NASA APOD](https://api.nasa.gov/) and the asteroid feed
 - Birds: [eBird](https://documenter.getpostman.com/view/664302/S1ENwy59) recent observations
 - Musings: [Anthropic Claude](https://www.anthropic.com/) (Haiku) — optional
-- Radio: [Navidrome](https://www.navidrome.org/) + [Syncthing](https://syncthing.net/)
+- Radio: [Radio Bartek](https://radiobartek.com/) on [AzuraCast](https://www.azuracast.com/) (embedded widget)
 
 ## License
 
