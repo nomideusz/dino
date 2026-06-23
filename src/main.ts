@@ -12,7 +12,6 @@ import { DinoVoice } from "./dinoVoice.js";
 import { WeatherClient } from "./weather.js";
 import { World } from "./world.js";
 import { typewriter } from "./typewriter.js";
-import { RadioAudio, type RadioChannel, channelFrequency } from "./radio.js";
 import { TextTerrain } from "./textTerrain.js";
 import { ZaurMemorySystem } from "./zaurMemory.js";
 import type { ContentItem } from "./services/content.js";
@@ -179,11 +178,6 @@ function startApp(stage: HTMLElement, worldCanvas: HTMLCanvasElement, dinoCanvas
   const chatInput = document.getElementById("chat-input") as HTMLInputElement;
   const cameraBtn = document.getElementById("camera-btn") as HTMLButtonElement;
   const voiceBtn = document.getElementById("voice-btn") as HTMLButtonElement;
-  const radioWidget = document.getElementById("radio-widget") as HTMLElement;
-  const radioPowerBtn = document.getElementById("radio-power-btn") as HTMLButtonElement;
-  const trackInfoEl = radioWidget.querySelector(".radio-track-info") as HTMLElement;
-  const freqDisplayEl = document.getElementById("radio-freq-display") as HTMLElement;
-  const statusTextEl = radioWidget.querySelector(".status-text") as HTMLElement;
 
   let dpr = Math.max(1, window.devicePixelRatio || 1);
   let cssW = stage.clientWidth;
@@ -222,7 +216,6 @@ function startApp(stage: HTMLElement, worldCanvas: HTMLCanvasElement, dinoCanvas
 
   const bubble = new DinoBubble(stage, dino);
   const voice = new DinoVoice(ARCHIVE_API_URL);
-  const radio = new RadioAudio();
 
   const ambient = new DinoAmbient(dino, () => weather.conditions());
   ambient.onWeatherComment = (line) => {
@@ -271,127 +264,6 @@ function startApp(stage: HTMLElement, worldCanvas: HTMLCanvasElement, dinoCanvas
       void voice.playSfx("/sfx/chime");
     }
     connectSse();
-  });
-
-  // ── Radio ─────────────────────────────────────────────────────────
-
-  let isRadioPlaying = false;
-  let trackChangeCount = 0;
-
-  const DJ_TRACK_LINES = [
-    "this song makes my tiny arms want to air guitar. *air guitars with no guitar and no arms*",
-    "i'm going to pretend i chose this track. great taste, me.",
-    "is this what humans call a 'bop'? my tail is bopping. i think it's a bop.",
-    "if you close your eyes this sounds like the asteroid approaching. but in a good way.",
-    "music is just organized air. and i'm just organized pixels. we're basically the same.",
-    "i wonder what the letters think of the music. the letter B looks like it's nodding.",
-    "this beat is making me forget about the asteroid. almost.",
-    "i could dance to this. i won't. but i could. theoretically.",
-  ];
-
-  const DJ_BETWEEN_LINES = [
-    "coming up next on zaur fm... honestly i don't know what's next. i can't read the playlist. tiny arms.",
-    "that was a good one. or bad. i have no frame of reference. i'm a dinosaur.",
-    "loading next track... or as i call it, 'standing here waiting'.",
-  ];
-
-  const DJ_START_LINES = [
-    "music! finally! it was way too quiet in here. just me and the letters and the existential dread.",
-    "zaur fm is on the air! *taps microphone* is this thing on? i don't have a microphone.",
-    "oh good, sounds. i was starting to hear my own thoughts and they're mostly about ferns.",
-  ];
-
-  const DJ_STOP_LINES = [
-    "and we're off the air. back to the sound of me breathing and the letters judging me.",
-    "the silence is deafening. like a very quiet asteroid.",
-    "it's too quiet. i can hear the semicolons whispering.",
-  ];
-
-  let selectedChannel: RadioChannel = "all";
-
-  async function setRadioPower(turnOn: boolean, channel: RadioChannel): Promise<void> {
-    const wasPlaying = isRadioPlaying;
-    
-    if (turnOn) {
-      isRadioPlaying = true;
-      dino.musicPlaying = true;
-      radioWidget.classList.add("active");
-      statusTextEl.textContent = "ONLINE";
-      const freq = channelFrequency(channel);
-      freqDisplayEl.textContent = `${freq.toFixed(1)} MHz`;
-      trackInfoEl.textContent = "tuning station...";
-      
-      const playSuccess = await radio.playMusic(channel);
-      if (!playSuccess) {
-        // If play failed, turn off
-        await setRadioPower(false, channel);
-        return;
-      }
-      
-      if (!wasPlaying) {
-        trackChangeCount = 1;
-        const line = DJ_START_LINES[Math.floor(Math.random() * DJ_START_LINES.length)];
-        dino.react("excited", 1800);
-        setTimeout(() => bubble.show(line), 600);
-      } else {
-        dino.react("excited", 1000);
-      }
-    } else {
-      isRadioPlaying = false;
-      dino.musicPlaying = false;
-      radio.stopMusic();
-      radioWidget.classList.remove("active");
-      statusTextEl.textContent = "OFFLINE";
-      freqDisplayEl.textContent = "OFF";
-      trackInfoEl.textContent = "offline";
-      
-      if (wasPlaying) {
-        trackChangeCount = 0;
-        const line = DJ_STOP_LINES[Math.floor(Math.random() * DJ_STOP_LINES.length)];
-        dino.react("sad", 1200);
-        setTimeout(() => bubble.show(line), 400);
-      }
-    }
-  }
-
-  radioPowerBtn.addEventListener("click", () => {
-    void setRadioPower(!isRadioPlaying, selectedChannel);
-  });
-
-  radio.onTrackChange = (info) => {
-    trackInfoEl.textContent = `${info.title} • ${info.artist} (${info.playlist})`;
-    trackChangeCount++;
-    
-    // DJ commentary on track changes (not the first one — that gets a "start" line).
-    if (trackChangeCount > 1 && Math.random() < 0.6) {
-      const pool = Math.random() < 0.7 ? DJ_TRACK_LINES : DJ_BETWEEN_LINES;
-      const line = pool[Math.floor(Math.random() * pool.length)];
-      setTimeout(() => {
-        bubble.show(line);
-        dino.react("happy", 1200);
-      }, 2000);
-    }
-  };
-
-  const channelBtns = radioWidget.querySelectorAll(".channel-btn");
-  channelBtns.forEach((btn) => {
-    btn.addEventListener("click", async () => {
-      const channel = btn.getAttribute("data-channel") as RadioChannel;
-      
-      // If we clicked the ALREADY active channel while radio is ON, turn the radio OFF!
-      if (isRadioPlaying && selectedChannel === channel) {
-        await setRadioPower(false, channel);
-        return;
-      }
-      
-      // Update DOM selection styling
-      channelBtns.forEach((b) => b.classList.remove("active"));
-      btn.classList.add("active");
-      selectedChannel = channel;
-      
-      // Always play/tune when clicking a channel button
-      await setRadioPower(true, channel);
-    });
   });
 
   // ── Return greeting ───────────────────────────────────────────────
@@ -897,29 +769,6 @@ function startApp(stage: HTMLElement, worldCanvas: HTMLCanvasElement, dinoCanvas
     }
   });
 
-  // Radio idle nudge — if radio has been off for > 5 min, occasionally ask about music.
-  let lastRadioNudge = performance.now();
-  setInterval(() => {
-    if (isRadioPlaying) {
-      lastRadioNudge = performance.now();
-      return;
-    }
-    const elapsed = performance.now() - lastRadioNudge;
-    if (elapsed < 5 * 60_000) return;
-    if (!dino.isAvailable || Math.random() > 0.15) return;
-
-    const nudgeLines = [
-      "it's really quiet in here. do you want me to hum? i'm a terrible hummer.",
-      "there's a radio button down there. just saying. no pressure. lots of pressure.",
-      "the silence is making me hear things. like my own thoughts. they're weird.",
-      "i miss the music. the letters were dancing. or i was imagining it. hard to tell with pixels.",
-    ];
-    const line = nudgeLines[Math.floor(Math.random() * nudgeLines.length)];
-    bubble.show(line);
-    dino.react("curious", 1800);
-    lastRadioNudge = performance.now();
-  }, 30_000);
-
   // Screenshot / Share Mode
   let isCapturing = false;
 
@@ -957,7 +806,7 @@ function startApp(stage: HTMLElement, worldCanvas: HTMLCanvasElement, dinoCanvas
           // Don't capture UI controls or chat form.
           if (node instanceof HTMLElement) {
             if (node.classList?.contains("bottom-bar")) return false;
-            if (node.classList?.contains("radio-drawer")) return false;
+            if (node.classList?.contains("radio-widget")) return false;
           }
           return true;
         }
@@ -1005,7 +854,7 @@ function startApp(stage: HTMLElement, worldCanvas: HTMLCanvasElement, dinoCanvas
   stage.addEventListener("pointerdown", (ev) => {
     if (ev.button !== 0) return;
     const target = ev.target;
-    if (target instanceof Element && target.closest("button, a, select, input, form, .radio-drawer")) {
+    if (target instanceof Element && target.closest("button, a, select, input, form, .radio-widget")) {
       return;
     }
     const rect = stage.getBoundingClientRect();

@@ -22,36 +22,24 @@
       <div class="vignette" aria-hidden="true"></div>
       <div class="grain" aria-hidden="true"></div>
 
-      <!-- Radio Zaur: Top-Right Integrated Controls & Header -->
+      <!-- Radio: embedded AzuraCast widget (Radio Bartek, radiobartek.com) -->
       <div id="radio-widget" class="radio-widget">
         <div class="radio-header">
           <div class="radio-brand">
-            <span class="brand-title">radio zaur</span>
-            <span class="brand-frequency" id="radio-freq-display">92.5 MHz</span>
+            <span class="brand-title">radio bartek</span>
           </div>
           <div class="radio-header-controls">
             <button id="voice-btn" class="voice-btn" title="Toggle voice feedback">🔇</button>
-            <button id="radio-power-btn" class="radio-power-btn" title="Toggle radio power">
-              <span class="power-led"></span> POWER
-            </button>
           </div>
         </div>
-        
-        <div class="radio-display">
-          <div class="display-status">
-            <span class="status-indicator">●</span> <span class="status-text">OFFLINE</span>
-          </div>
-          <div class="radio-track-info" id="radio-track-info">offline</div>
-        </div>
-
-        <div class="radio-channels">
-          <button class="channel-btn active" data-channel="all">ALL</button>
-          <button class="channel-btn" data-channel="news">NEWS</button>
-          <button class="channel-btn" data-channel="quake">QUAKES</button>
-          <button class="channel-btn" data-channel="fact">FACTS</button>
-          <button class="channel-btn" data-channel="space">SPACE</button>
-          <button class="channel-btn" data-channel="bird">BIRDS</button>
-        </div>
+        <iframe
+          class="radio-embed"
+          src="https://radiobartek.com/public/radio_bartek/embed?theme=dark"
+          title="Radio Bartek"
+          frameborder="0"
+          allow="autoplay"
+          loading="lazy"
+        ></iframe>
       </div>
 
       <!-- Text terrain: scattered text blocks across the whole viewport -->
