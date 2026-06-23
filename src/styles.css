@@ -547,8 +547,7 @@ body.capturing .radio-drawer {
   position: fixed;
   top: 1.2rem;
   left: 1.5rem;
-  width: 380px;
-  max-height: calc(100vh - 2.4rem);
+  width: 340px;
   background: rgba(28, 28, 35, 0.85);
   backdrop-filter: blur(16px);
   -webkit-backdrop-filter: blur(16px);
@@ -566,10 +565,10 @@ body.capturing .radio-drawer {
 .radio-embed {
   display: block;
   width: 100%;
-  height: 620px;
+  height: 96px;
   border: 0;
   border-radius: 4px;
-  background: var(--bg, #14141a);
+  background: transparent;
 }
 
 .radio-header {

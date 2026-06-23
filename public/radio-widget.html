@@ -1,0 +1,276 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Radio Bartek — widget</title>
+<!--
+  Self-contained, dependency-free radio widget.
+
+  Embed anywhere:
+    <iframe src="https://dino.zaur.app/radio-widget.html"
+            style="width:340px;height:96px;border:0" title="Radio Bartek"></iframe>
+
+  Reuse for another AzuraCast station via query params:
+    ?base=https://your.host&station=your_shortcode&accent=%23ff2e88
+  All it needs from the host is the public now-playing API (CORS-open) and the
+  stream mount — no build step, no framework.
+-->
+<style>
+  :root {
+    --accent: #ff2e88;
+    --bg: #0e0e14;
+    --ink: #e8e4d8;
+    --ink-soft: #8a8678;
+    --live: #b6ff3a;
+    --mono: "Ioskeley Mono", ui-monospace, "JetBrains Mono", "SF Mono", Menlo, Consolas, monospace;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; background: transparent; }
+  body {
+    font-family: var(--mono);
+    color: var(--ink);
+    -webkit-font-smoothing: antialiased;
+    overflow: hidden;
+  }
+
+  .rb {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    height: 100%;
+    min-height: 76px;
+    padding: 10px;
+    background: var(--bg);
+    border: 1px solid color-mix(in srgb, var(--accent), transparent 70%);
+    border-radius: 8px;
+    box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.4) inset,
+      0 6px 22px rgba(0, 0, 0, 0.45);
+    position: relative;
+    overflow: hidden;
+  }
+  /* thin neon top edge */
+  .rb::before {
+    content: "";
+    position: absolute;
+    inset: 0 0 auto 0;
+    height: 2px;
+    background: linear-gradient(90deg, var(--accent), #19d3ff 60%, transparent);
+    opacity: 0.9;
+  }
+
+  .rb-art {
+    width: 56px;
+    height: 56px;
+    flex: 0 0 auto;
+    border-radius: 5px;
+    object-fit: cover;
+    background: #1a1a22;
+    border: 1px solid color-mix(in srgb, var(--accent), transparent 55%);
+    image-rendering: auto;
+  }
+
+  .rb-info { flex: 1 1 auto; min-width: 0; }
+
+  .rb-brand {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 9px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--ink-soft);
+    margin-bottom: 2px;
+  }
+  .rb-dot {
+    width: 6px; height: 6px; border-radius: 50%;
+    background: var(--ink-soft); flex: 0 0 auto;
+  }
+  .rb.live .rb-dot { background: var(--live); box-shadow: 0 0 6px var(--live); animation: pulse 1.6s infinite; }
+  @keyframes pulse { 0%,100% { opacity: 1 } 50% { opacity: 0.35 } }
+  .rb-status { color: var(--ink-soft); }
+  .rb.live .rb-status { color: var(--live); }
+
+  .rb-title {
+    font-size: 12.5px;
+    font-weight: 700;
+    line-height: 1.25;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .rb-artist {
+    font-size: 11px;
+    color: var(--ink-soft);
+    line-height: 1.3;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .rb-bar {
+    margin-top: 6px;
+    height: 3px;
+    border-radius: 2px;
+    background: rgba(255, 255, 255, 0.08);
+    overflow: hidden;
+  }
+  .rb-fill {
+    display: block;
+    height: 100%;
+    width: 0%;
+    background: linear-gradient(90deg, var(--accent), #19d3ff);
+    transition: width 0.9s linear;
+  }
+  .rb-bar.hidden { visibility: hidden; }
+
+  .rb-play {
+    flex: 0 0 auto;
+    width: 42px; height: 42px;
+    border: 0;
+    border-radius: 50%;
+    background: var(--accent);
+    color: #fff;
+    cursor: pointer;
+    display: grid;
+    place-items: center;
+    box-shadow: 0 0 14px color-mix(in srgb, var(--accent), transparent 45%);
+    transition: transform 0.1s ease, filter 0.15s ease;
+  }
+  .rb-play:hover { filter: brightness(1.12); }
+  .rb-play:active { transform: scale(0.94); }
+  .rb-play svg { width: 18px; height: 18px; fill: #fff; }
+  .rb-play .ico-pause { display: none; }
+  .rb.playing .rb-play .ico-play { display: none; }
+  .rb.playing .rb-play .ico-pause { display: block; }
+  .rb.loading .rb-play { animation: spin 0.9s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg) } }
+</style>
+</head>
+<body>
+  <div class="rb" id="rb">
+    <img class="rb-art" id="art" alt="" />
+    <div class="rb-info">
+      <div class="rb-brand">
+        <span class="rb-dot"></span>
+        <span class="rb-status" id="status">offline</span>
+        <span id="listeners"></span>
+      </div>
+      <div class="rb-title" id="title">—</div>
+      <div class="rb-artist" id="artist"></div>
+      <div class="rb-bar" id="bar"><span class="rb-fill" id="fill"></span></div>
+    </div>
+    <button class="rb-play" id="play" aria-label="Play / pause" title="Play / pause">
+      <svg class="ico-play" viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5v14l11-7z"/></svg>
+      <svg class="ico-pause" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 5h4v14H6zM14 5h4v14h-4z"/></svg>
+    </button>
+  </div>
+
+  <audio id="audio" preload="none" crossorigin="anonymous"></audio>
+
+  <script>
+  (function () {
+    var q = new URLSearchParams(location.search);
+    var BASE = (q.get("base") || "https://radiobartek.com").replace(/\/$/, "");
+    var STATION = q.get("station") || "radio_bartek";
+    var accent = q.get("accent");
+    if (accent) document.documentElement.style.setProperty("--accent", accent);
+
+    var rb = document.getElementById("rb");
+    var els = {
+      art: document.getElementById("art"),
+      status: document.getElementById("status"),
+      listeners: document.getElementById("listeners"),
+      title: document.getElementById("title"),
+      artist: document.getElementById("artist"),
+      bar: document.getElementById("bar"),
+      fill: document.getElementById("fill"),
+      play: document.getElementById("play"),
+      audio: document.getElementById("audio"),
+    };
+
+    var streamUrl = BASE + "/listen/" + STATION + "/radio.mp3";
+    var elapsed = 0, duration = 0, lastSync = 0;
+
+    // ── Now-playing polling ──────────────────────────────────────────
+    function fmt(t) {
+      t = Math.max(0, Math.floor(t || 0));
+      var m = Math.floor(t / 60), s = t % 60;
+      return m + ":" + (s < 10 ? "0" : "") + s;
+    }
+
+    async function poll() {
+      try {
+        var r = await fetch(BASE + "/api/nowplaying/" + STATION, { cache: "no-store" });
+        if (!r.ok) throw new Error("http " + r.status);
+        var d = await r.json();
+        var np = d.now_playing || {}, song = np.song || {}, live = d.live || {}, st = d.station || {};
+        if (st.listen_url) streamUrl = st.listen_url;
+
+        els.title.textContent = song.title || song.text || st.name || "Radio";
+        els.artist.textContent = song.artist || "";
+        if (song.art && els.art.src !== song.art) els.art.src = song.art;
+
+        var isLive = !!live.is_live;
+        var online = d.is_online !== false;
+        rb.classList.toggle("live", online);
+        els.status.textContent = isLive
+          ? (live.streamer_name ? "live · " + live.streamer_name : "live")
+          : (online ? "on air" : "offline");
+
+        var cur = d.listeners && typeof d.listeners.current === "number" ? d.listeners.current : null;
+        els.listeners.textContent = cur != null ? "· " + cur + " listening" : "";
+
+        duration = np.duration || 0;
+        elapsed = np.elapsed || 0;
+        lastSync = Date.now();
+        tick();
+      } catch (e) {
+        // Leave last-known info; mark offline only if we never loaded.
+        if (!els.art.src) els.status.textContent = "offline";
+      }
+    }
+
+    function tick() {
+      if (duration > 0) {
+        var e = elapsed + (Date.now() - lastSync) / 1000;
+        var pct = Math.min(100, (e / duration) * 100);
+        els.fill.style.width = pct + "%";
+        els.bar.classList.remove("hidden");
+      } else {
+        els.bar.classList.add("hidden");
+      }
+    }
+
+    // ── Playback ─────────────────────────────────────────────────────
+    function play() {
+      rb.classList.add("loading");
+      els.audio.src = streamUrl + (streamUrl.indexOf("?") < 0 ? "?" : "&") + "_=" + Date.now();
+      var p = els.audio.play();
+      if (p && p.catch) p.catch(function () { stop(); });
+    }
+    function stop() {
+      els.audio.pause();
+      els.audio.removeAttribute("src");
+      els.audio.load();
+      rb.classList.remove("playing", "loading");
+    }
+    els.play.addEventListener("click", function () {
+      if (rb.classList.contains("playing") || rb.classList.contains("loading")) stop();
+      else play();
+    });
+    els.audio.addEventListener("playing", function () {
+      rb.classList.remove("loading");
+      rb.classList.add("playing");
+    });
+    els.audio.addEventListener("pause", function () { rb.classList.remove("playing", "loading"); });
+    els.audio.addEventListener("error", function () { stop(); });
+
+    // ── Loop ─────────────────────────────────────────────────────────
+    poll();
+    setInterval(poll, 15000);
+    setInterval(tick, 1000);
+  })();
+  </script>
+</body>
+</html>
