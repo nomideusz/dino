@@ -1,0 +1,66 @@
+name: Deploy dino to CapRover
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'src/**'
+      - 'public/**'
+      - 'index.html'
+      - 'vite.config.ts'
+      - 'tsconfig.json'
+      - 'static-server.mjs'
+      - 'package.json'
+      - 'pnpm-lock.yaml'
+      - '.npmrc'
+      - 'Dockerfile.frontend'
+      - 'deploy/dino.captain-definition'
+      - '.github/workflows/deploy-dino.yml'
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Type check
+        run: pnpm typecheck
+
+      - name: Prepare captain-definition
+        run: cp deploy/dino.captain-definition captain-definition
+
+      - name: Create deployment tarball
+        run: |
+          tar -cf deploy.tar \
+            captain-definition \
+            Dockerfile.frontend \
+            package.json \
+            pnpm-lock.yaml \
+            .npmrc \
+            vite.config.ts \
+            tsconfig.json \
+            index.html \
+            static-server.mjs \
+            src \
+            public
+
+      - name: Deploy to CapRover
+        uses: caprover/deploy-from-github@v1.1.2
+        with:
+          server: https://captain.zaur.app
+          app: dino
+          token: ${{ secrets.CAPROVER_DINO_TOKEN }}

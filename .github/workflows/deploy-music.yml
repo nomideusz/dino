@@ -1,0 +1,38 @@
+name: Deploy music to CapRover
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'navidrome/**'
+      - 'Dockerfile.navidrome'
+      - 'deploy/music.captain-definition'
+      - '.github/workflows/deploy-music.yml'
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Syntax check entrypoint
+        run: bash -n navidrome/entrypoint.sh
+
+      - name: Prepare captain-definition
+        run: cp deploy/music.captain-definition captain-definition
+
+      - name: Create deployment tarball
+        run: |
+          tar -cf deploy.tar \
+            captain-definition \
+            Dockerfile.navidrome \
+            navidrome
+
+      - name: Deploy to CapRover
+        uses: caprover/deploy-from-github@v1.1.2
+        with:
+          server: https://captain.zaur.app
+          app: music
+          token: ${{ secrets.CAPROVER_MUSIC_TOKEN }}
