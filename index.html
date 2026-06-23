@@ -1,0 +1,87 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <meta name="theme-color" content="#14141a" />
+    <meta
+      name="description"
+      content="Zaur, a tiny pixel dinosaur living between the letters."
+    />
+    <title>zaur • between the lines</title>
+    <link rel="preload" href="/fonts/IoskeleyMono-Regular.woff2" as="font" type="font/woff2" crossorigin />
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 16'%3E%3Crect width='20' height='16' fill='%2314141a'/%3E%3Cg fill='%23e8e4d8'%3E%3Crect x='14' y='0' width='4' height='1'/%3E%3Crect x='13' y='1' width='6' height='1'/%3E%3Crect x='13' y='2' width='1' height='1'/%3E%3Crect x='15' y='2' width='5' height='1'/%3E%3Crect x='13' y='3' width='5' height='1'/%3E%3Crect x='12' y='4' width='3' height='1'/%3E%3Crect x='3' y='5' width='13' height='1'/%3E%3Crect x='2' y='6' width='15' height='1'/%3E%3Crect x='1' y='7' width='16' height='1'/%3E%3Crect x='0' y='8' width='2' height='1'/%3E%3Crect x='5' y='8' width='10' height='1'/%3E%3Crect x='6' y='9' width='2' height='4'/%3E%3Crect x='12' y='9' width='2' height='4'/%3E%3Crect x='5' y='13' width='4' height='1'/%3E%3Crect x='11' y='13' width='4' height='1'/%3E%3C/g%3E%3C/svg%3E" />
+    <link rel="stylesheet" href="/src/styles.css" />
+  </head>
+  <body>
+    <main class="stage" id="stage" aria-label="Zaur's world of letters">
+      <!-- Background: sky, weather, world canvas (dimmed via CSS) -->
+      <canvas id="world-canvas" aria-hidden="true"></canvas>
+      <!-- Zaur canvas: rendered above terrain so dino walks on text -->
+      <canvas id="dino-canvas" aria-hidden="true"></canvas>
+      <div class="vignette" aria-hidden="true"></div>
+      <div class="grain" aria-hidden="true"></div>
+
+      <!-- Radio Zaur: Top-Right Integrated Controls & Header -->
+      <div id="radio-widget" class="radio-widget">
+        <div class="radio-header">
+          <div class="radio-brand">
+            <span class="brand-title">radio zaur</span>
+            <span class="brand-frequency" id="radio-freq-display">92.5 MHz</span>
+          </div>
+          <div class="radio-header-controls">
+            <button id="voice-btn" class="voice-btn" title="Toggle voice feedback">🔇</button>
+            <button id="radio-power-btn" class="radio-power-btn" title="Toggle radio power">
+              <span class="power-led"></span> POWER
+            </button>
+          </div>
+        </div>
+        
+        <div class="radio-display">
+          <div class="display-status">
+            <span class="status-indicator">●</span> <span class="status-text">OFFLINE</span>
+          </div>
+          <div class="radio-track-info" id="radio-track-info">offline</div>
+        </div>
+
+        <div class="radio-channels">
+          <button class="channel-btn active" data-channel="all">ALL</button>
+          <button class="channel-btn" data-channel="news">NEWS</button>
+          <button class="channel-btn" data-channel="quake">QUAKES</button>
+          <button class="channel-btn" data-channel="fact">FACTS</button>
+          <button class="channel-btn" data-channel="space">SPACE</button>
+          <button class="channel-btn" data-channel="bird">BIRDS</button>
+        </div>
+      </div>
+
+      <!-- Text terrain: scattered text blocks across the whole viewport -->
+      <div id="terrain" class="terrain"></div>
+
+      <!-- System status -->
+      <div id="system-msg" class="system-message">// zaur is waking up...</div>
+
+      <!-- Bottom controls & interactive prompt -->
+      <div class="bottom-bar">
+        <div class="bottom-bar-inner">
+          <form id="chat-form" class="chat-form">
+            <span class="prompt-arrow">&gt;</span>
+            <input type="text" id="chat-input" placeholder="say something to zaur..." autocomplete="off" />
+          </form>
+          <div class="controls">
+            <button id="camera-btn" class="control-btn" title="Take a picture of Zaur">📸</button>
+          </div>
+        </div>
+      </div>
+
+
+    </main>
+
+    <noscript>
+      <p style="padding: 2rem; font-family: ui-monospace, monospace">
+        // dino needs javascript to live. please enable it.
+      </p>
+    </noscript>
+
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

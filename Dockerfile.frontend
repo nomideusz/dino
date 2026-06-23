@@ -1,0 +1,31 @@
+FROM node:22-alpine AS builder
+
+WORKDIR /app
+
+RUN corepack enable && corepack prepare pnpm@10.32.1 --activate
+
+COPY package.json pnpm-lock.yaml .npmrc ./
+RUN pnpm install --frozen-lockfile
+
+COPY . .
+
+ARG VITE_ARCHIVE_URL=https://dino-archive.zaur.app
+ENV VITE_ARCHIVE_URL=$VITE_ARCHIVE_URL
+
+RUN pnpm build
+
+FROM node:22-alpine AS runner
+
+WORKDIR /app
+
+ENV NODE_ENV=production
+ENV PORT=4173
+
+# static-server.mjs uses only Node built-ins, so the runtime needs no
+# node_modules — just the built assets and the server entrypoint.
+COPY --from=builder /app/dist ./dist
+COPY --from=builder /app/static-server.mjs ./static-server.mjs
+
+EXPOSE 4173
+
+CMD ["node", "static-server.mjs"]

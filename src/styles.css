@@ -1,0 +1,867 @@
+@font-face {
+  font-family: "Ioskeley Mono";
+  src: url("/fonts/IoskeleyMono-Regular.woff2") format("woff2");
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+:root {
+  /* Default Night Palette */
+  --bg:         #14141a;
+  --bg-rgb:     20, 20, 26;
+  --ink:        #e8e4d8;
+  --ink-rgb:    232, 228, 216;
+  --ink-soft:   #8a8678;
+  --paper:      #1f1e26;
+  --paper-rgb:  31, 30, 38;
+  
+  --mono-stack: "Ioskeley Mono", ui-monospace, "JetBrains Mono", "SF Mono", Menlo, Consolas, monospace;
+  font-family: var(--mono-stack);
+}
+
+body.theme-day {
+  /* Day Palette - Warm vintage paper & ink */
+  --bg:         #f5f4ef;
+  --bg-rgb:     245, 244, 239;
+  --ink:        #1e1e24;
+  --ink-rgb:    30, 30, 36;
+  --ink-soft:   #6d6b5e;
+  --paper:      #ebeae4;
+  --paper-rgb:  235, 234, 228;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background: var(--bg);
+  color: var(--ink);
+  -webkit-font-smoothing: antialiased;
+  transition: background-color 2.5s ease, color 2.5s ease;
+}
+
+::selection {
+  background: var(--ink);
+  color: var(--bg);
+}
+
+/* ── Stage: full-viewport container ─────────────────────────────────── */
+
+.stage {
+  position: relative;
+  width: 100%;
+  height: 100vh;
+  overflow: hidden;
+}
+
+/* ── Canvases ───────────────────────────────────────────────────────── */
+
+/* World canvas: dimmed sky/weather backdrop */
+#world-canvas {
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+  z-index: 1;
+  pointer-events: none;
+  image-rendering: pixelated;
+  image-rendering: -moz-crisp-edges;
+  image-rendering: crisp-edges;
+  /* Dim the world so text pops — the sky becomes a subtle backdrop */
+  opacity: 0.4;
+  transition: opacity 2s ease;
+}
+
+body.theme-day #world-canvas {
+  opacity: 0.35;
+}
+
+/* Dino canvas: Zaur rendered above terrain so he walks on text */
+#dino-canvas {
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+  z-index: 5;
+  pointer-events: none;
+  image-rendering: pixelated;
+  image-rendering: -moz-crisp-edges;
+  image-rendering: crisp-edges;
+}
+
+/* Film grain + vignette over the dimmed world */
+.vignette {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  background: radial-gradient(ellipse at center, transparent 55%, rgba(0, 0, 0, 0.35) 100%);
+  z-index: 2;
+}
+
+.grain {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  mix-blend-mode: overlay;
+  opacity: 0.06;
+  z-index: 2;
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='160' height='160'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 1  0 0 0 0 1  0 0 0 0 1  0 0 0 0.5 0'/></filter><rect width='100%25' height='100%25' filter='url(%23n)'/></svg>");
+}
+
+/* ── Terrain layer: where text blocks live ──────────────────────────── */
+
+.terrain {
+  position: fixed;
+  inset: 0;
+  z-index: 3;
+  pointer-events: none;
+  overflow: hidden;
+}
+
+/* ── Header: minimal top-left corner ────────────────────────────────── */
+
+.header {
+  position: fixed;
+  top: 1.2rem;
+  left: 1.5rem;
+  z-index: 10;
+  pointer-events: none;
+}
+
+.logo {
+  font-size: 1.4rem;
+  font-weight: 700;
+  letter-spacing: -0.05em;
+  color: var(--ink);
+  text-transform: lowercase;
+  opacity: 0.5;
+}
+
+.subtitle {
+  font-size: 0.7rem;
+  color: var(--ink-soft);
+  margin-top: 0.1rem;
+  text-transform: lowercase;
+  opacity: 0.4;
+}
+
+/* ── Scattered text blocks (terrain) ────────────────────────────────── */
+
+.terrain-block {
+  position: absolute;
+  font-family: var(--mono-stack);
+  font-size: 0.72rem;
+  font-weight: 600;
+  line-height: 1.55;
+  color: var(--ink);
+  white-space: pre-wrap;
+  word-wrap: break-word;
+  pointer-events: auto;
+  cursor: default;
+  
+  /* No background — text floats on the dimmed world */
+  padding: 0.5rem 0.6rem;
+  border-left: 2px solid rgba(var(--ink-rgb), 0.12);
+  
+  /* Entrance animation */
+  opacity: 0;
+  transform: translateY(4px);
+  transition: 
+    opacity 0.6s ease,
+    transform 0.5s cubic-bezier(0.2, 0.7, 0.2, 1.1),
+    border-color 0.3s ease;
+}
+
+.terrain-block--new {
+  animation: block-appear 0.7s cubic-bezier(0.2, 0.7, 0.2, 1.1) forwards;
+}
+
+.terrain-block--restored {
+  opacity: 0.35;
+  transform: none;
+  transition: opacity 0.3s ease;
+}
+
+.terrain-block--restored:hover {
+  opacity: 0.7;
+}
+
+.terrain-block--fading {
+  opacity: 0 !important;
+  transform: translateY(-8px) !important;
+  transition: opacity 0.8s ease, transform 0.8s ease !important;
+  pointer-events: none !important;
+}
+
+.terrain-block--expired {
+  opacity: 0.15 !important;
+  transition: opacity 1.5s ease !important;
+}
+
+@keyframes block-appear {
+  0% {
+    opacity: 0;
+    transform: translateY(6px) scale(0.97);
+  }
+  60% {
+    opacity: 0.9;
+    transform: translateY(-1px) scale(1.01);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+/* Kind-specific left-border accent colors */
+.terrain-block.kind-news  { border-left-color: rgba(var(--ink-rgb), 0.18); }
+.terrain-block.kind-fact  { border-left-color: rgba(97, 175, 239, 0.55); }
+.terrain-block.kind-quake { border-left-color: rgba(224, 108, 117, 0.65); font-weight: 700; }
+.terrain-block.kind-space { border-left-color: rgba(198, 120, 221, 0.55); }
+.terrain-block.kind-bird  { border-left-color: rgba(152, 195, 121, 0.55); }
+.terrain-block.kind-user  { border-left-color: rgba(var(--ink-rgb), 0.35); font-style: italic; }
+.terrain-block.kind-zaur  { border-left-color: rgba(229, 192, 123, 0.55); }
+
+/* Hover: text block lights up slightly */
+.terrain-block:hover {
+  border-left-color: rgba(var(--ink-rgb), 0.45);
+}
+
+.tb-meta {
+  font-size: 0.6rem;
+  color: var(--ink-soft);
+  margin-bottom: 0.25rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  opacity: 0.6;
+}
+
+.tb-text {
+  /* The text itself — bold enough to read against the dimmed sky */
+  font-weight: 600;
+}
+
+.tb-link {
+  display: inline-block;
+  margin-top: 0.3rem;
+  font-size: 0.65rem;
+  color: var(--ink);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  cursor: pointer;
+  opacity: 0.5;
+  transition: opacity 0.2s ease;
+}
+
+.tb-link:hover {
+  opacity: 0.9;
+}
+
+/* ── System messages ────────────────────────────────────────────────── */
+
+.system-message {
+  position: fixed;
+  bottom: 4.5rem;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 0.7rem;
+  color: var(--ink-soft);
+  opacity: 0.5;
+  z-index: 10;
+  pointer-events: none;
+  font-family: var(--mono-stack);
+}
+
+/* ── Typist blinking cursor ─────────────────────────────────────────── */
+
+.typing-cursor::after {
+  content: "█";
+  animation: cursor-blink 0.8s infinite;
+  margin-left: 2px;
+}
+
+@keyframes cursor-blink {
+  0%, 100% { opacity: 0; }
+  50% { opacity: 1; }
+}
+
+/* ── Eaten letter animation ─────────────────────────────────────────── */
+
+.eaten-letter-flash {
+  display: inline-block;
+  animation: letter-flash 0.5s ease-out forwards;
+}
+
+@keyframes letter-flash {
+  0% {
+    color: #ff4444;
+    text-shadow: 0 0 8px #ff4444;
+    transform: scale(1.4);
+  }
+  100% {
+    color: transparent;
+    text-shadow: none;
+    transform: scale(0.5) rotate(15deg);
+  }
+}
+
+/* ── Earthquake Shake ───────────────────────────────────────────────── */
+
+@keyframes shake {
+  10%, 90% { transform: translate(calc(-1px * var(--shake-intensity, 1)), calc(1px * var(--shake-intensity, 1))); }
+  20%, 80% { transform: translate(calc(2px * var(--shake-intensity, 1)), calc(-1px * var(--shake-intensity, 1))) rotate(calc(0.3deg * var(--shake-intensity, 1))); }
+  30%, 50%, 70% { transform: translate(calc(-3px * var(--shake-intensity, 1)), calc(2px * var(--shake-intensity, 1))) rotate(calc(-0.5deg * var(--shake-intensity, 1))); }
+  40%, 60% { transform: translate(calc(3px * var(--shake-intensity, 1)), calc(-2px * var(--shake-intensity, 1))) rotate(calc(0.5deg * var(--shake-intensity, 1))); }
+}
+
+.earthquake-shake {
+  animation: shake 0.6s cubic-bezier(.36,.07,.19,.97) both;
+}
+
+/* Flash overlay for large earthquakes (M5.0+) */
+.earthquake-flash {
+  position: fixed;
+  inset: 0;
+  background: rgba(255, 255, 255, 0.15);
+  pointer-events: none;
+  z-index: 20;
+  animation: quake-flash 0.6s ease-out forwards;
+}
+
+@keyframes quake-flash {
+  0% { opacity: 1; }
+  100% { opacity: 0; }
+}
+
+/* ── Easter Eggs ────────────────────────────────────────────────────── */
+
+/* Pixel meteor that streaks across the screen diagonally */
+.easter-meteor {
+  position: fixed;
+  top: -10px;
+  left: -10px;
+  width: 4px;
+  height: 4px;
+  background: #fff;
+  border-radius: 50%;
+  box-shadow:
+    0 0 6px 2px rgba(255, 200, 100, 0.8),
+    0 0 12px 4px rgba(255, 100, 50, 0.4);
+  z-index: 25;
+  pointer-events: none;
+  animation: meteor-streak 1.5s linear forwards;
+}
+
+.easter-meteor::after {
+  content: "";
+  position: absolute;
+  top: 1px;
+  right: 4px;
+  width: 40px;
+  height: 1px;
+  background: linear-gradient(to left, transparent, rgba(255, 200, 100, 0.6));
+  transform: rotate(45deg);
+  transform-origin: right center;
+}
+
+@keyframes meteor-streak {
+  0% {
+    top: -10px;
+    left: 10%;
+    opacity: 1;
+  }
+  80% {
+    opacity: 1;
+  }
+  100% {
+    top: 110%;
+    left: 90%;
+    opacity: 0;
+  }
+}
+
+/* ISS Pass-Over dot */
+.iss-dot {
+  position: absolute;
+  width: 2px;
+  height: 2px;
+  background: rgba(255, 255, 255, 0.9);
+  border-radius: 50%;
+  box-shadow: 0 0 4px rgba(255, 255, 255, 0.6);
+  z-index: 5; /* behind Zaur but above background */
+  pointer-events: none;
+  animation: iss-fly 30s linear forwards;
+}
+
+@keyframes iss-fly {
+  0% {
+    top: 20%;
+    left: -10px;
+    opacity: 0;
+  }
+  10% { opacity: 1; }
+  90% { opacity: 1; }
+  100% {
+    top: 30%;
+    left: 110%;
+    opacity: 0;
+  }
+}
+
+/* Konami code: "cool" mode — dino canvas gets a subtle glow */
+body.zaur-cool #dino-canvas {
+  filter: drop-shadow(0 0 8px rgba(100, 200, 255, 0.4));
+}
+
+body.zaur-cool .dino-bubble {
+  border-color: rgba(100, 200, 255, 0.3);
+  box-shadow: 0 4px 0 rgba(0, 0, 0, 0.35), 0 0 12px rgba(100, 200, 255, 0.15);
+}
+
+/* Watermark for screenshots */
+.screenshot-watermark {
+  position: absolute;
+  bottom: 24px;
+  right: 24px;
+  font-family: var(--mono-stack);
+  font-size: 0.8rem;
+  color: var(--ink);
+  opacity: 0.6;
+  z-index: 50;
+  pointer-events: none;
+}
+
+body.capturing .bottom-bar,
+body.capturing .radio-drawer {
+  display: none !important;
+}
+
+/* ── Bottom console panel ───────────────────────────────────────────── */
+
+.bottom-bar {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  background: rgba(var(--bg-rgb), 0.85);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  border-top: 1px solid rgba(var(--ink-rgb), 0.08);
+  padding: 0.6rem 1.2rem;
+  z-index: 100;
+  transition: background-color 2.5s ease;
+}
+
+.bottom-bar-inner {
+  max-width: 720px;
+  margin: 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.chat-form {
+  flex-grow: 1;
+  display: flex;
+  align-items: center;
+  background: rgba(var(--ink-rgb), 0.03);
+  border: 1px solid rgba(var(--ink-rgb), 0.06);
+  padding: 0.4rem 0.6rem;
+  border-radius: 3px;
+  transition: border-color 0.2s ease;
+}
+
+.chat-form:focus-within {
+  border-color: rgba(var(--ink-rgb), 0.25);
+}
+
+.prompt-arrow {
+  color: var(--ink-soft);
+  margin-right: 0.4rem;
+  font-weight: bold;
+  user-select: none;
+  font-size: 0.8rem;
+  opacity: 0.5;
+}
+
+#chat-input {
+  flex-grow: 1;
+  background: transparent;
+  border: none;
+  outline: none;
+  font-family: var(--mono-stack);
+  font-size: 0.78rem;
+  color: var(--ink);
+}
+
+#chat-input::placeholder {
+  color: var(--ink-soft);
+  opacity: 0.5;
+}
+
+.controls {
+  display: flex;
+  gap: 0.4rem;
+}
+
+.control-btn {
+  background: rgba(var(--ink-rgb), 0.03);
+  border: 1px solid rgba(var(--ink-rgb), 0.08);
+  color: var(--ink);
+  padding: 0.4rem 0.6rem;
+  font-family: var(--mono-stack);
+  font-size: 0.85rem;
+  border-radius: 3px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s ease;
+  opacity: 0.6;
+}
+
+.control-btn:hover {
+  opacity: 1;
+  background: rgba(var(--ink-rgb), 0.08);
+}
+
+.control-btn.active {
+  opacity: 1;
+  background: rgba(var(--ink-rgb), 0.1);
+  border-color: rgba(var(--ink-rgb), 0.2);
+}
+
+/* ── Integrated Radio Zaur Widget ───────────────────────────────────── */
+
+.radio-widget {
+  position: fixed;
+  top: 1.2rem;
+  left: 1.5rem;
+  width: 320px;
+  background: rgba(28, 28, 35, 0.85);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(var(--ink-rgb), 0.15);
+  border-radius: 6px;
+  padding: 0.8rem;
+  z-index: 100;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+  font-family: var(--mono-stack);
+  pointer-events: auto;
+  transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
+}
+
+.radio-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 0.6rem;
+  border-bottom: 1px solid rgba(var(--ink-rgb), 0.08);
+  padding-bottom: 0.4rem;
+}
+
+.radio-brand {
+  display: flex;
+  flex-direction: column;
+}
+
+.brand-title {
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: var(--ink);
+  letter-spacing: -0.02em;
+  text-transform: lowercase;
+}
+
+.brand-frequency {
+  font-size: 0.55rem;
+  color: var(--ink-soft);
+  opacity: 0.6;
+}
+
+.radio-header-controls {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.voice-btn {
+  background: rgba(var(--ink-rgb), 0.05);
+  border: 1px solid rgba(var(--ink-rgb), 0.15);
+  color: var(--ink);
+  font-size: 0.7rem;
+  padding: 0.2rem 0.35rem;
+  border-radius: 4px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.15s ease;
+  line-height: 1;
+}
+
+.voice-btn:hover {
+  background: rgba(var(--ink-rgb), 0.1);
+  border-color: rgba(var(--ink-rgb), 0.3);
+}
+
+.voice-btn.active {
+  background: rgba(var(--ink-rgb), 0.12);
+  border-color: rgba(var(--ink-rgb), 0.4);
+}
+
+.radio-power-btn {
+  background: rgba(var(--ink-rgb), 0.05);
+  border: 1px solid rgba(var(--ink-rgb), 0.15);
+  color: var(--ink);
+  font-family: var(--mono-stack);
+  font-size: 0.6rem;
+  font-weight: 700;
+  padding: 0.25rem 0.5rem;
+  border-radius: 4px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+  transition: all 0.15s ease;
+}
+
+.radio-power-btn:hover {
+  background: rgba(var(--ink-rgb), 0.1);
+  border-color: rgba(var(--ink-rgb), 0.3);
+}
+
+.power-led {
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #ff4444;
+  box-shadow: 0 0 4px #ff4444;
+  transition: all 0.2s ease;
+}
+
+.radio-widget.active .power-led {
+  background: #00ffaa;
+  box-shadow: 0 0 6px #00ffaa;
+}
+
+.radio-display {
+  background: #141416;
+  border: 1px solid rgba(255, 140, 0, 0.1);
+  box-shadow: inset 0 0 10px rgba(0, 0, 0, 0.8), 0 0 4px rgba(255, 140, 0, 0.05);
+  border-radius: 4px;
+  padding: 0.5rem;
+  margin-bottom: 0.6rem;
+  transition: all 0.3s ease;
+}
+
+.radio-widget.active .radio-display {
+  border-color: rgba(255, 140, 0, 0.3);
+  box-shadow: inset 0 0 12px rgba(255, 140, 0, 0.15), 0 0 8px rgba(255, 140, 0, 0.1);
+}
+
+.display-row-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  margin-bottom: 0.3rem;
+}
+
+.display-frequency {
+  font-size: 1rem;
+  font-weight: 700;
+  color: rgba(255, 140, 0, 0.2);
+  text-shadow: 0 0 2px rgba(255, 140, 0, 0.05);
+  letter-spacing: 0.05em;
+  transition: all 0.3s ease;
+}
+
+.radio-widget.active .display-frequency {
+  color: #ff9d22;
+  text-shadow: 0 0 8px rgba(255, 157, 34, 0.6), 0 0 15px rgba(255, 157, 34, 0.3);
+}
+
+.display-status {
+  display: flex;
+  align-items: center;
+  font-size: 0.55rem;
+}
+
+.display-signal {
+  font-size: 0.55rem;
+  color: rgba(255, 140, 0, 0.15);
+  font-weight: bold;
+  letter-spacing: 0.05em;
+  transition: all 0.3s ease;
+}
+
+.radio-widget.active .display-signal {
+  color: rgba(255, 157, 34, 0.8);
+  text-shadow: 0 0 4px rgba(255, 157, 34, 0.4);
+}
+
+.status-indicator {
+  font-size: 0.5rem;
+  color: rgba(255, 140, 0, 0.15);
+  margin-right: 4px;
+  animation: none;
+  transition: all 0.3s ease;
+}
+
+.radio-widget.active .status-indicator {
+  color: #ff9d22;
+  text-shadow: 0 0 6px #ff9d22;
+  animation: blink-indicator 1.5s infinite;
+}
+
+@keyframes blink-indicator {
+  0%, 100% { opacity: 0.35; }
+  50% { opacity: 1; }
+}
+
+.radio-channels {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 0.25rem;
+}
+
+.channel-btn {
+  background: linear-gradient(to bottom, #2b2b35, #22222a);
+  border: 1px solid #1a1a20;
+  border-bottom: 2px solid #101015;
+  color: var(--ink-soft);
+  font-family: var(--mono-stack);
+  font-size: 0.58rem;
+  font-weight: 700;
+  padding: 0.35rem 0.2rem;
+  border-radius: 3px;
+  cursor: pointer;
+  text-align: center;
+  text-transform: uppercase;
+  transition: all 0.1s ease;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+}
+
+.channel-btn:hover {
+  color: var(--ink);
+  background: linear-gradient(to bottom, #32323e, #282832);
+}
+
+.radio-widget.active .channel-btn.active {
+  background: linear-gradient(to bottom, #181820, #202028);
+  border: 1px solid #12121a;
+  border-top: 2px solid #0d0d12;
+  border-bottom: 1px solid #22222a;
+  color: #ff9d22;
+  text-shadow: 0 0 4px rgba(255, 157, 34, 0.4);
+  box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.5);
+  transform: translateY(1px);
+}
+
+.radio-widget:not(.active) .channel-btn.active {
+  background: linear-gradient(to bottom, #181820, #202028);
+  border: 1px solid #12121a;
+  border-top: 2px solid #0d0d12;
+  border-bottom: 1px solid #22222a;
+  color: var(--ink);
+  box-shadow: inset 0 2px 3px rgba(0, 0, 0, 0.4);
+  transform: translateY(1px);
+}
+
+.radio-track-info {
+  font-size: 0.6rem;
+  color: rgba(255, 140, 0, 0.15);
+  min-height: 1.4rem;
+  display: flex;
+  align-items: center;
+  word-break: break-all;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  border-top: 1px dashed rgba(255, 140, 0, 0.05);
+  padding-top: 0.3rem;
+  margin-top: 0.2rem;
+  transition: all 0.3s ease;
+}
+
+.radio-widget.active .radio-track-info {
+  color: rgba(255, 180, 80, 0.95);
+  text-shadow: 0 0 4px rgba(255, 157, 34, 0.2);
+  border-top-color: rgba(255, 140, 0, 0.15);
+}
+
+/* ── Return greeting overlay ────────────────────────────────────────── */
+
+.return-greeting {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  max-width: 440px;
+  padding: 1.5rem 2rem;
+  font-family: var(--mono-stack);
+  font-size: 0.82rem;
+  font-weight: 600;
+  line-height: 1.65;
+  color: var(--ink);
+  z-index: 20;
+  text-align: center;
+  opacity: 0;
+  animation: greeting-in 1.2s ease 0.5s forwards;
+}
+
+@keyframes greeting-in {
+  0% {
+    opacity: 0;
+    transform: translate(-50%, -50%) translateY(8px);
+  }
+  100% {
+    opacity: 0.85;
+    transform: translate(-50%, -50%) translateY(0);
+  }
+}
+
+.return-greeting--fading {
+  animation: greeting-out 1.5s ease forwards;
+}
+
+@keyframes greeting-out {
+  to {
+    opacity: 0;
+    transform: translate(-50%, -50%) translateY(-12px);
+  }
+}
+
+/* ── Responsive ─────────────────────────────────────────────────────── */
+
+@media (max-width: 600px) {
+  .terrain-block {
+    font-size: 0.65rem;
+    padding: 0.4rem 0.5rem;
+  }
+  .bottom-bar {
+    padding: 0.4rem 0.8rem;
+  }
+  .bottom-bar-inner {
+    gap: 0.5rem;
+  }
+  .chat-form {
+    padding: 0.35rem 0.5rem;
+  }
+  .radio-widget {
+    top: 0.8rem;
+    left: 0.8rem;
+    width: calc(100% - 1.6rem);
+  }
+}

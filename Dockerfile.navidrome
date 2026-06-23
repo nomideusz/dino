@@ -1,0 +1,13 @@
+FROM deluan/navidrome:latest
+
+USER root
+
+# tini          — signal handling for our multi-process container
+# syncthing     — file sync daemon
+# apache2-utils — provides htpasswd, used to bcrypt the Syncthing GUI password
+RUN apk add --no-cache tini syncthing apache2-utils
+
+COPY navidrome/entrypoint.sh /entrypoint.sh
+RUN chmod 0755 /entrypoint.sh /app/navidrome
+
+ENTRYPOINT ["/sbin/tini", "--", "/entrypoint.sh"]

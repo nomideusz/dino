@@ -1,0 +1,12 @@
+# mediacms-ingest crontab (supercronic). Deploy to /srv/mediacms-ingest/crontab.
+
+# Mirror channels hourly at :17 (offset to avoid the busy top-of-hour)
+17 * * * * /scripts/mirror.sh
+# Discover queue: poll every minute for videos/audio the user clicked
+* * * * * /scripts/discover-ingest.sh
+# ListenBrainz recommendations → discover audio queue (weekly)
+0 4 * * 0 /scripts/lb-ingest.sh
+# MediaCMS retention: keep KEEP_PER_CHANNEL newest per channel tag
+0 5 * * * /scripts/cleanup.sh
+# Drop failed mirror staging files older than PRUNE_DAYS
+30 5 * * * /scripts/prune-tmp.sh

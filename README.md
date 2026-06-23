@@ -1,0 +1,244 @@
+# 🦖 dino — a tiny pixel friend that lives on your page
+
+A little pixel-art dinosaur strolls around the page like he owns it. Snippets
+of the world — top stories from Hacker News, your local weather, small
+thoughts — slide in from the edges as floating cards. Dino's job is to walk
+over, grab each one, and drag it down to the matching category bin at the
+bottom of the page.
+
+Built with **Vite + TypeScript**, no bundled images, and any API keys it
+needs stay server-side. Production runs as three CapRover apps on the Contabo
+VPS:
+
+- `dino` ([dino.zaur.app](https://dino.zaur.app)): the static Vite app served
+  by `static-server.mjs`.
+- `dino-archive` ([dino-archive.zaur.app](https://dino-archive.zaur.app)): an
+  in-memory 24-hour shared archive plus an authoritative WebSocket realtime
+  endpoint and the radio proxy, served from `server/server.mjs`.
+- `music` ([music.zaur.app](https://music.zaur.app)): a custom Navidrome +
+  Syncthing image (`Dockerfile.navidrome` + `navidrome/entrypoint.sh`) that
+  hosts the music library on a shared volume.
+
+> This used to live in the `zaur` monorepo at `apps/dinosaurus`. It is now a
+> standalone repo. The pixel-art frames (formerly the shared `@zaur/sprite`
+> package) are vendored into `src/spriteFrames.ts`.
+
+## Quick start
+
+```bash
+pnpm install
+pnpm dev      # http://localhost:5173
+```
+
+Build a static bundle:
+
+```bash
+pnpm build    # outputs to ./dist
+pnpm preview  # serve ./dist locally
+```
+
+Run the archive service locally in another terminal (it's a standalone npm
+package):
+
+```bash
+cd server
+npm install
+npm start     # http://localhost:8080
+```
+
+## Configuration
+
+Frontend build-time variable:
+
+- `VITE_ARCHIVE_URL`: public base URL for the archive service. In production
+  this is `https://dino-archive.zaur.app`.
+
+Archive runtime variables:
+
+- `PORT`: HTTP port. CapRover sets this automatically.
+- `ALLOWED_ORIGINS`: comma-separated browser origins allowed to call
+  `/archive` and `/events`, for example
+  `https://dino.zaur.app,http://localhost:5173,http://localhost:5174,http://localhost:4173`.
+- `ARCHIVE_PERSIST_PATH`: optional snapshot path (e.g. `/data/bins.json` on a
+  CapRover persistent volume) so the 24-hour archive survives redeploys. Unset
+  = in-memory only.
+- `NAVIDROME_URL` (default `https://music.zaur.app`), `NAVIDROME_USER`,
+  `NAVIDROME_PASSWORD`: credentials for the radio. User and password must be
+  set for `/radio/*`; URL alone is not enough.
+- `ADMIN_TOKEN`: shared secret for `/admin/refresh-playlists`. Empty disables
+  admin endpoints entirely.
+- `PLAYLIST_SYNC_INTERVAL_MS`: how often the archive auto-syncs the `all`
+  playlist with the live Navidrome library. Defaults to `900000` (15 min);
+  the archive also runs one sync ~30 s after boot. Set to `0` to disable
+  both the boot sync and the periodic refresh.
+- `ANTHROPIC_API_KEY`: optional; enables the `musings` source (Claude Haiku
+  generates dino thoughts ~once an hour). Without it the source is skipped.
+- `ELEVENLABS_API_KEY`: optional; enables the `/tts` proxy so the client can
+  speak dino's thoughts aloud. Unset disables the endpoint (returns 503).
+  `ELEVENLABS_VOICE_ID` (default `1LHhf1fWEA2SA0ReEViX`) and
+  `ELEVENLABS_MODEL_ID` (default `eleven_v3`) override the voice/model.
+  The frontend gates voice playback behind a small speaker toggle on the
+  radio panel; opt-in is persisted per visitor in `localStorage` and the
+  audio is streamed Blob-only (never written to disk on either side).
+  When both `ELEVENLABS_API_KEY` and `ANTHROPIC_API_KEY` are set, the
+  archive also runs a slow ambient sfx cadence (~6–10 min): Claude Haiku
+  writes a short evocative prompt from a recent narrator item, ElevenLabs
+  sound generation produces ~2.5 s of audio, and a `dino_sfx` event is
+  broadcast pointing at `/sfx/<token>` (kept in memory ~5 min then GC'd).
+  Visitors with the voice toggle on hear it; everyone else ignores it.
+
+Navidrome service runtime variables (the bundled image):
+
+- `ND_PORT`, `ND_MUSICFOLDER`, `ND_DATAFOLDER`: standard Navidrome — all paths
+  live on the shared CapRover volume.
+- `SYNCTHING_USER` (default `admin`), `SYNCTHING_PASSWORD`: required on first
+  boot to seed the Syncthing GUI on `:8384` with bcrypted credentials.
+
+The frontend reads `VITE_ARCHIVE_URL` at build time, so changing it requires a
+new frontend build/deploy. The client connects to `${VITE_ARCHIVE_URL}/realtime`
+with WebSocket and falls back to archive polling/SSE compatibility when needed.
+If archive sync fails, the app keeps working locally and logs a one-time browser
+console warning pointing at these variables.
+
+## Dino radio
+
+The bottom-of-page strip is a working audio player that streams tracks from a
+Navidrome library. The user picks a channel (`all`, `news`, `quakes`, `facts`,
+`space`, `birds`) and a pace (`chill`, `normal`, `busy`). Preferences are
+anonymous, saved in `localStorage`, and sent to `/realtime` for the current
+socket only. Pace also throttles how cards spawn so the dino never gets
+overwhelmed.
+
+Audio flows through the archive server: the client calls `/radio/track` for
+the next track id, then `/radio/stream/<id>` to play the bytes. The archive
+proxies Subsonic so Navidrome credentials never reach the browser, and
+forwards `Range` headers so the audio element can seek.
+
+Per-channel playlists are hand-curated in Navidrome's UI. The
+`POST /admin/refresh-playlists` endpoint (auth via `X-Admin-Token`) mirrors
+the entire library into the `all` playlist and ensures an empty shell exists
+for every per-channel playlist matching a category bin (`news`, `quakes`,
+`facts`, `space`, `birds`). Existing per-channel contents are never touched
+— only the names are guaranteed to be present so you have ready destinations
+to drag tracks into. The runtime picker falls back to `all` whenever a
+per-channel playlist is missing or empty.
+
+## Dino thoughts (speech bubble)
+
+In the original cut, the dino's musings were just another card kind sorted
+into a `thoughts` bin. They aren't first-class content though — they're
+flavour. The server now keeps a slow ticker driven by `server/sources/musings.mjs`
+(Claude Haiku when `ANTHROPIC_API_KEY` is set, hand-written fallback pool
+otherwise) and broadcasts each line as a `dino_thought` event over SSE/WS
+every ~90–150s. The client renders it as a brief speech bubble anchored
+above the dino's head (`src/dinoBubble.ts`), then fades out — no card, no
+courier, no archive. The pattern detector in `messages.ts` also funnels its
+"i keep hearing about X" observations into the same bubble.
+
+## What's inside
+
+```
+src/
+├── main.ts            # entry point + courier loop (dino ↔ messages)
+├── world.ts           # animated sky, sun/moon, clouds, hills, ground
+├── dino.ts            # dino entity + tiny state machine (wander/seek/carry/deliver)
+├── dinoBubble.ts      # ephemeral speech bubble for dino_thought events
+├── sprite.ts          # canvas rendering for the dino frames
+├── spriteFrames.ts    # programmatic pixel-art frames (vendored, no image files)
+├── messages.ts        # floating message cards + category bins (DOM overlay)
+├── weather.ts         # per-visitor weather card + ambient sky state
+└── services/
+    └── content.ts     # shared ContentItem types
+
+server/                # standalone npm package (@anthropic-ai/sdk)
+├── server.mjs         # archive API, WebSocket authority, radio proxy, admin
+├── narrator.mjs       # server-side source scheduler and item picker
+└── sources/           # HN, DEV.to, quakes, facts, musings, space, birds
+
+navidrome/
+└── entrypoint.sh      # boots Syncthing in the background and Navidrome up front
+
+Dockerfile.frontend    # → dino        (static Vite app)
+Dockerfile.archive     # → dino-archive (server/)
+Dockerfile.navidrome   # → music        (Navidrome + Syncthing)
+deploy/                # caprover.sh + the three captain-definitions
+infra/                 # listenbrainz-ingest + mediacms-ingest (music pipeline)
+```
+
+## How a message gets sorted
+
+1. Each server-side source produces scored items on its own refresh schedule.
+2. The archive `Narrator` keeps a deduped pool, ranks them (score + recency + a
+   diversity penalty so the same kind doesn't dominate), and creates an active
+   server-owned card.
+3. Connected browsers receive `item_spawned` over `/realtime`. Each client
+   queues active cards locally and only spawns a few at a time so one dino
+   does not get overwhelmed.
+4. The courier loop in `main.ts` looks at floating cards, claims one over the
+   realtime socket, and tells the dino to walk over.
+5. Dino seeks → grabs → carries the card above his head → walks down to the
+   bin matching that card's `kind` → drops it in.
+6. The client sends `deliver`; the server accepts the delivery, moves the card
+   into the shared archive, and broadcasts `item_delivered` so every browser
+   cancels any duplicate local work.
+
+While he has nothing to deliver, dino does his usual thing: walking,
+looking up, blinking, occasionally napping.
+
+## Adding a new shared content source
+
+Add a source module under `server/sources/` and register it in `server/server.mjs`:
+
+```js
+export const MarsWeather = {
+  name: "mars-weather",
+  refreshEveryMs: 30 * 60_000,
+  async fetchItems(signal) {
+    // fetch + map to { id, kind, text, href?, publishedAt, score }
+  },
+};
+```
+
+If you introduce a new `ContentKind`, also add it to `src/services/content.ts`,
+`server/server.mjs`'s `ALLOWED_KINDS`, and the bin list in `src/main.ts`:
+
+```ts
+const messages = new MessageWorld(stage, [
+  { kind: "news",    label: "news",     icon: "▤" },
+  { kind: "thought", label: "thoughts", icon: "✦" },
+  { kind: "fact",    label: "facts",    icon: "❍" },
+], cssW, cssH);
+```
+
+That's the whole extension surface — dino will start sorting Mars weather on
+his own, mixed in with everything else.
+
+## Deploy
+
+Production runs on CapRover (`captain.zaur.app` on the Contabo VPS). From this
+repo root (requires `caprover login`):
+
+```bash
+pnpm deploy:dino           # frontend → dino.zaur.app
+pnpm deploy:dino-archive   # API → dino-archive.zaur.app
+pnpm deploy:music          # Navidrome → music.zaur.app
+```
+
+Captain definitions live in `deploy/` (`dino.captain-definition`,
+`dino-archive.captain-definition`, `music.captain-definition`); the deploy
+script is `deploy/caprover.sh`.
+
+## Credits
+
+- News: [Hacker News API](https://github.com/HackerNews/API) and [DEV.to](https://dev.to/api)
+- Weather: [Open-Meteo](https://open-meteo.com/) (no API key required)
+- Approximate location: [ipapi.co](https://ipapi.co/) (falls back to London)
+- Earthquakes: [USGS](https://earthquake.usgs.gov/fdsnws/event/1/) feed
+- Space: [NASA APOD](https://api.nasa.gov/) and the asteroid feed
+- Birds: [eBird](https://documenter.getpostman.com/view/664302/S1ENwy59) recent observations
+- Musings: [Anthropic Claude](https://www.anthropic.com/) (Haiku) — optional
+- Radio: [Navidrome](https://www.navidrome.org/) + [Syncthing](https://syncthing.net/)
+
+## License
+
+MIT

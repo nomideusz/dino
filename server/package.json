@@ -1,0 +1,17 @@
+{
+  "name": "@zaur/dinosaurus-archive",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Shared 24-hour archive of items the dino has sorted, for the dinosaurus front-end.",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "start": "node server.mjs",
+    "dev": "node --env-file=../.env --watch server.mjs"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.91.1"
+  }
+}
