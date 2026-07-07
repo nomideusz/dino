@@ -24,7 +24,7 @@ jobs:
 
       - name: Syntax check server
         run: |
-          for f in server/server.mjs server/narrator.mjs server/sources/*.mjs; do
+          for f in server/*.mjs server/sources/*.mjs; do
             node --check "$f"
           done
 
