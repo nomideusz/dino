@@ -1,35 +1,25 @@
-// A pluggable content-source abstraction. Anything dino can talk about goes
-// behind this interface — news, weather, jokes, fortune cookies, whatever.
-// The narrator picks one item at a time based on score + recency.
+// The story model shared with the archive server. The server's editor
+// publishes only a few stories per category per day; each carries a short
+// summary so the page is readable on its own, plus a link to the source.
 
-export type ContentKind =
-  | "news"
-  | "weather"
-  | "fact"
-  | "quake"
-  | "space"
-  | "bird";
+export type Category = "tech" | "world" | "ukraine" | "science";
 
-export interface ContentItem {
-  /** Stable ID — used to avoid repeating the same item. */
+export const CATEGORIES: readonly Category[] = ["tech", "world", "ukraine", "science"];
+
+export interface Story {
+  /** Stable ID — used to avoid rendering the same story twice. */
   id: string;
-  kind: ContentKind;
-  /** Short, dino-mouth-friendly text. Keep ≤ 160 chars. */
-  text: string;
-  /** Optional follow-up link. */
+  category: Category;
+  title: string;
+  /** 2-3 calm sentences written by the editor. */
+  summary: string;
+  /** Link to the original article. */
   href?: string;
-  linkLabel?: string;
-  /** When the source thinks the item became known (epoch ms). */
+  sourceName: string;
+  /** When the source published the story (epoch ms). */
   publishedAt?: number;
+  /** When our editor decided it mattered (epoch ms). */
   deliveredAt?: number;
-  /** 0..1 — higher = juicier. Used by the ranker. */
-  score: number;
-}
-
-export interface ContentSource {
-  readonly name: string;
-  /** How often (ms) the orchestrator should ask this source to refresh. */
-  readonly refreshEveryMs: number;
-  /** Returns a snapshot of items the source currently knows about. */
-  fetchItems(signal: AbortSignal): Promise<ContentItem[]>;
+  /** 0..1 — the editor's importance rating. */
+  importance: number;
 }

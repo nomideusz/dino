@@ -160,9 +160,8 @@ body.theme-day #world-canvas {
 .terrain-block {
   position: absolute;
   font-family: var(--mono-stack);
-  font-size: 0.72rem;
-  font-weight: 600;
-  line-height: 1.55;
+  font-size: 0.74rem;
+  line-height: 1.6;
   color: var(--ink);
   white-space: pre-wrap;
   word-wrap: break-word;
@@ -170,7 +169,7 @@ body.theme-day #world-canvas {
   cursor: default;
   
   /* No background — text floats on the dimmed world */
-  padding: 0.5rem 0.6rem;
+  padding: 0.55rem 0.7rem;
   border-left: 2px solid rgba(var(--ink-rgb), 0.12);
   
   /* Entrance animation */
@@ -186,14 +185,13 @@ body.theme-day #world-canvas {
   animation: block-appear 0.7s cubic-bezier(0.2, 0.7, 0.2, 1.1) forwards;
 }
 
-.terrain-block--restored {
-  opacity: 0.35;
+.terrain-block:not(.terrain-block--new) {
+  opacity: 1;
   transform: none;
-  transition: opacity 0.3s ease;
 }
 
-.terrain-block--restored:hover {
-  opacity: 0.7;
+.terrain-block--hidden {
+  display: none;
 }
 
 .terrain-block--fading {
@@ -223,14 +221,11 @@ body.theme-day #world-canvas {
   }
 }
 
-/* Kind-specific left-border accent colors */
-.terrain-block.kind-news  { border-left-color: rgba(var(--ink-rgb), 0.18); }
-.terrain-block.kind-fact  { border-left-color: rgba(97, 175, 239, 0.55); }
-.terrain-block.kind-quake { border-left-color: rgba(224, 108, 117, 0.65); font-weight: 700; }
-.terrain-block.kind-space { border-left-color: rgba(198, 120, 221, 0.55); }
-.terrain-block.kind-bird  { border-left-color: rgba(152, 195, 121, 0.55); }
-.terrain-block.kind-user  { border-left-color: rgba(var(--ink-rgb), 0.35); font-style: italic; }
-.terrain-block.kind-zaur  { border-left-color: rgba(229, 192, 123, 0.55); }
+/* Category accent colors on the left border */
+.terrain-block.kind-tech    { border-left-color: rgba(97, 175, 239, 0.55); }
+.terrain-block.kind-world   { border-left-color: rgba(229, 192, 123, 0.55); }
+.terrain-block.kind-ukraine { border-left-color: rgba(224, 108, 117, 0.6); }
+.terrain-block.kind-science { border-left-color: rgba(152, 195, 121, 0.55); }
 
 /* Hover: text block lights up slightly */
 .terrain-block:hover {
@@ -240,20 +235,28 @@ body.theme-day #world-canvas {
 .tb-meta {
   font-size: 0.6rem;
   color: var(--ink-soft);
-  margin-bottom: 0.25rem;
+  margin-bottom: 0.3rem;
   text-transform: uppercase;
   letter-spacing: 0.06em;
   opacity: 0.6;
 }
 
+.tb-title {
+  font-weight: 700;
+  font-size: 0.82rem;
+  line-height: 1.45;
+  margin-bottom: 0.35rem;
+}
+
 .tb-text {
-  /* The text itself — bold enough to read against the dimmed sky */
-  font-weight: 600;
+  /* The editor's short summary — readable against the dimmed sky */
+  font-weight: 500;
+  opacity: 0.85;
 }
 
 .tb-link {
   display: inline-block;
-  margin-top: 0.3rem;
+  margin-top: 0.35rem;
   font-size: 0.65rem;
   color: var(--ink);
   text-decoration: underline;
@@ -295,100 +298,7 @@ body.theme-day #world-canvas {
   50% { opacity: 1; }
 }
 
-/* ── Eaten letter animation ─────────────────────────────────────────── */
-
-.eaten-letter-flash {
-  display: inline-block;
-  animation: letter-flash 0.5s ease-out forwards;
-}
-
-@keyframes letter-flash {
-  0% {
-    color: #ff4444;
-    text-shadow: 0 0 8px #ff4444;
-    transform: scale(1.4);
-  }
-  100% {
-    color: transparent;
-    text-shadow: none;
-    transform: scale(0.5) rotate(15deg);
-  }
-}
-
-/* ── Earthquake Shake ───────────────────────────────────────────────── */
-
-@keyframes shake {
-  10%, 90% { transform: translate(calc(-1px * var(--shake-intensity, 1)), calc(1px * var(--shake-intensity, 1))); }
-  20%, 80% { transform: translate(calc(2px * var(--shake-intensity, 1)), calc(-1px * var(--shake-intensity, 1))) rotate(calc(0.3deg * var(--shake-intensity, 1))); }
-  30%, 50%, 70% { transform: translate(calc(-3px * var(--shake-intensity, 1)), calc(2px * var(--shake-intensity, 1))) rotate(calc(-0.5deg * var(--shake-intensity, 1))); }
-  40%, 60% { transform: translate(calc(3px * var(--shake-intensity, 1)), calc(-2px * var(--shake-intensity, 1))) rotate(calc(0.5deg * var(--shake-intensity, 1))); }
-}
-
-.earthquake-shake {
-  animation: shake 0.6s cubic-bezier(.36,.07,.19,.97) both;
-}
-
-/* Flash overlay for large earthquakes (M5.0+) */
-.earthquake-flash {
-  position: fixed;
-  inset: 0;
-  background: rgba(255, 255, 255, 0.15);
-  pointer-events: none;
-  z-index: 20;
-  animation: quake-flash 0.6s ease-out forwards;
-}
-
-@keyframes quake-flash {
-  0% { opacity: 1; }
-  100% { opacity: 0; }
-}
-
 /* ── Easter Eggs ────────────────────────────────────────────────────── */
-
-/* Pixel meteor that streaks across the screen diagonally */
-.easter-meteor {
-  position: fixed;
-  top: -10px;
-  left: -10px;
-  width: 4px;
-  height: 4px;
-  background: #fff;
-  border-radius: 50%;
-  box-shadow:
-    0 0 6px 2px rgba(255, 200, 100, 0.8),
-    0 0 12px 4px rgba(255, 100, 50, 0.4);
-  z-index: 25;
-  pointer-events: none;
-  animation: meteor-streak 1.5s linear forwards;
-}
-
-.easter-meteor::after {
-  content: "";
-  position: absolute;
-  top: 1px;
-  right: 4px;
-  width: 40px;
-  height: 1px;
-  background: linear-gradient(to left, transparent, rgba(255, 200, 100, 0.6));
-  transform: rotate(45deg);
-  transform-origin: right center;
-}
-
-@keyframes meteor-streak {
-  0% {
-    top: -10px;
-    left: 10%;
-    opacity: 1;
-  }
-  80% {
-    opacity: 1;
-  }
-  100% {
-    top: 110%;
-    left: 90%;
-    opacity: 0;
-  }
-}
 
 /* ISS Pass-Over dot */
 .iss-dot {
@@ -467,46 +377,40 @@ body.capturing .radio-drawer {
   margin: 0 auto;
   display: flex;
   align-items: center;
+  justify-content: space-between;
   gap: 1rem;
 }
 
-.chat-form {
-  flex-grow: 1;
+/* Category channel toggles — quiet lowercase text buttons */
+.channels {
   display: flex;
   align-items: center;
-  background: rgba(var(--ink-rgb), 0.03);
-  border: 1px solid rgba(var(--ink-rgb), 0.06);
-  padding: 0.4rem 0.6rem;
-  border-radius: 3px;
-  transition: border-color 0.2s ease;
+  gap: 0.35rem;
+  flex-wrap: wrap;
 }
 
-.chat-form:focus-within {
-  border-color: rgba(var(--ink-rgb), 0.25);
-}
-
-.prompt-arrow {
-  color: var(--ink-soft);
-  margin-right: 0.4rem;
-  font-weight: bold;
-  user-select: none;
-  font-size: 0.8rem;
-  opacity: 0.5;
-}
-
-#chat-input {
-  flex-grow: 1;
+.channel-btn {
   background: transparent;
-  border: none;
-  outline: none;
+  border: 1px solid rgba(var(--ink-rgb), 0.08);
+  color: var(--ink-soft);
+  padding: 0.3rem 0.6rem;
   font-family: var(--mono-stack);
-  font-size: 0.78rem;
-  color: var(--ink);
+  font-size: 0.68rem;
+  text-transform: lowercase;
+  border-radius: 3px;
+  cursor: pointer;
+  opacity: 0.55;
+  transition: all 0.2s ease;
 }
 
-#chat-input::placeholder {
-  color: var(--ink-soft);
-  opacity: 0.5;
+.channel-btn:hover {
+  opacity: 0.9;
+}
+
+.channel-btn.active {
+  color: var(--ink);
+  border-color: rgba(var(--ink-rgb), 0.3);
+  opacity: 1;
 }
 
 .controls {
@@ -624,53 +528,11 @@ body.capturing .radio-drawer {
   border-color: rgba(var(--ink-rgb), 0.4);
 }
 
-/* ── Return greeting overlay ────────────────────────────────────────── */
-
-.return-greeting {
-  position: fixed;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
-  max-width: 440px;
-  padding: 1.5rem 2rem;
-  font-family: var(--mono-stack);
-  font-size: 0.82rem;
-  font-weight: 600;
-  line-height: 1.65;
-  color: var(--ink);
-  z-index: 20;
-  text-align: center;
-  opacity: 0;
-  animation: greeting-in 1.2s ease 0.5s forwards;
-}
-
-@keyframes greeting-in {
-  0% {
-    opacity: 0;
-    transform: translate(-50%, -50%) translateY(8px);
-  }
-  100% {
-    opacity: 0.85;
-    transform: translate(-50%, -50%) translateY(0);
-  }
-}
-
-.return-greeting--fading {
-  animation: greeting-out 1.5s ease forwards;
-}
-
-@keyframes greeting-out {
-  to {
-    opacity: 0;
-    transform: translate(-50%, -50%) translateY(-12px);
-  }
-}
-
 /* ── Responsive ─────────────────────────────────────────────────────── */
 
 @media (max-width: 600px) {
   .terrain-block {
-    font-size: 0.65rem;
+    font-size: 0.68rem;
     padding: 0.4rem 0.5rem;
   }
   .bottom-bar {
@@ -678,9 +540,6 @@ body.capturing .radio-drawer {
   }
   .bottom-bar-inner {
     gap: 0.5rem;
-  }
-  .chat-form {
-    padding: 0.35rem 0.5rem;
   }
   .radio-widget {
     top: 0.8rem;

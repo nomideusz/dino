@@ -1,10 +1,12 @@
-# 🦖 dino — a tiny pixel friend that lives on your page
+# 🦖 dino — a quiet page of important news
 
-A little pixel-art dinosaur strolls around the page like he owns it. Snippets
-of the world — top stories from Hacker News, your local weather, small
-thoughts — slide in from the edges as floating cards. Dino's job is to walk
-over, grab each one, and drag it down to the matching category bin at the
-bottom of the page.
+Dino lives in his world, which starts empty. There is no prompt, no feed, no
+sign-in, no ads — just a minimal radio in the corner and, a few times a day,
+a story that actually matters. A server-side editor reads a handful of
+quality sources and publishes only the important ones, each with a short calm
+summary. Published stories persist for two days as scattered text blocks;
+Zaur, a tiny pixel dinosaur, walks between them, stands on them, and keeps
+you company without interrupting.
 
 Built with **Vite + TypeScript**, no bundled images, and any API keys it
 needs stay server-side. Production runs as three CapRover apps on the Contabo
@@ -12,9 +14,9 @@ VPS:
 
 - `dino` ([dino.zaur.app](https://dino.zaur.app)): the static Vite app served
   by `static-server.mjs`.
-- `dino-archive` ([dino-archive.zaur.app](https://dino-archive.zaur.app)): an
-  in-memory 24-hour shared archive plus an authoritative WebSocket realtime
-  endpoint and the radio proxy, served from `server/server.mjs`.
+- `dino-archive` ([dino-archive.zaur.app](https://dino-archive.zaur.app)):
+  the editor + story archive with an SSE stream, served from
+  `server/server.mjs`.
 - `music` ([music.zaur.app](https://music.zaur.app)): a custom Navidrome +
   Syncthing image (`Dockerfile.navidrome` + `navidrome/entrypoint.sh`) that
   hosts the music library on a shared volume.
@@ -46,6 +48,33 @@ npm install
 npm start     # http://localhost:8080
 ```
 
+## How the editor works
+
+1. **Sources** poll on their own schedules and fill a candidate pool:
+   - **tech** — Hacker News front page (with points/comments as signals)
+   - **world** — BBC World RSS + major earthquakes (M6.5+, USGS)
+   - **ukraine** — The Guardian's Ukraine section + BBC's "War in Ukraine" topic
+   - **science** — Ars Technica Science RSS + NASA's Astronomy Picture of the Day
+2. **An editorial pass** runs every ~2 hours (`server/editor.mjs`). With
+   `ANTHROPIC_API_KEY` set, Claude Haiku acts as editor-in-chief: it rates
+   each candidate's importance (1–10) and writes a 2–3 sentence summary,
+   strictly from the feed text it is given. Stories below importance 6 don't
+   run, and picking nothing is normal. Without a key, a conservative
+   heuristic (HN points, feed position, recency, live-blog demotion) picks at
+   most one story per category per pass and reuses the feed's own description.
+3. **Budgets** keep the page quiet: at most 4 stories per category per day,
+   at most 2 per category per pass.
+4. **Published stories persist 48 hours** in the archive (optionally
+   snapshotted to disk via `ARCHIVE_PERSIST_PATH`) and stream to every
+   visitor over SSE — a `snapshot` on connect, then `add` / `expire` deltas.
+   Everyone sees the same world.
+
+On the client, stories render as scattered text blocks (title, summary,
+source link) that double as physical terrain — Zaur has gravity and stands on
+their top edges. The category toggles in the bottom bar filter what's shown
+(persisted per-visitor in `localStorage`); Zaur quietly walks over to
+whatever is new.
+
 ## Configuration
 
 Frontend build-time variable:
@@ -59,24 +88,20 @@ Archive runtime variables:
 - `ALLOWED_ORIGINS`: comma-separated browser origins allowed to call
   `/archive` and `/events`, for example
   `https://dino.zaur.app,http://localhost:5173,http://localhost:5174,http://localhost:4173`.
-- `ARCHIVE_PERSIST_PATH`: optional snapshot path (e.g. `/data/bins.json` on a
-  CapRover persistent volume) so the 24-hour archive survives redeploys. Unset
+- `ARCHIVE_PERSIST_PATH`: optional snapshot path (e.g. `/data/stories.json`
+  on a CapRover persistent volume) so the archive survives redeploys. Unset
   = in-memory only.
-- `ANTHROPIC_API_KEY`: optional; enables the `musings` source (Claude Haiku
-  generates dino thoughts ~once an hour). Without it the source is skipped.
+- `ANTHROPIC_API_KEY`: optional but strongly recommended; enables the Claude
+  editorial pass (importance + summaries) and the dino's occasional
+  thoughts. Without it the heuristic editor and a hand-written thought pool
+  take over.
+- `NASA_API_KEY`: optional; APOD works on `DEMO_KEY` but a real key is polite.
 - `ELEVENLABS_API_KEY`: optional; enables the `/tts` proxy so the client can
   speak dino's thoughts aloud. Unset disables the endpoint (returns 503).
-  `ELEVENLABS_VOICE_ID` (default `1LHhf1fWEA2SA0ReEViX`) and
-  `ELEVENLABS_MODEL_ID` (default `eleven_v3`) override the voice/model.
+  `ELEVENLABS_VOICE_ID` and `ELEVENLABS_MODEL_ID` override the voice/model.
   The frontend gates voice playback behind a small speaker toggle on the
   radio panel; opt-in is persisted per visitor in `localStorage` and the
   audio is streamed Blob-only (never written to disk on either side).
-  When both `ELEVENLABS_API_KEY` and `ANTHROPIC_API_KEY` are set, the
-  archive also runs a slow ambient sfx cadence (~6–10 min): Claude Haiku
-  writes a short evocative prompt from a recent narrator item, ElevenLabs
-  sound generation produces ~2.5 s of audio, and a `dino_sfx` event is
-  broadcast pointing at `/sfx/<token>` (kept in memory ~5 min then GC'd).
-  Visitors with the voice toggle on hear it; everyone else ignores it.
 
 Navidrome service runtime variables (the bundled image):
 
@@ -86,10 +111,7 @@ Navidrome service runtime variables (the bundled image):
   boot to seed the Syncthing GUI on `:8384` with bcrypted credentials.
 
 The frontend reads `VITE_ARCHIVE_URL` at build time, so changing it requires a
-new frontend build/deploy. The client connects to `${VITE_ARCHIVE_URL}/realtime`
-with WebSocket and falls back to archive polling/SSE compatibility when needed.
-If archive sync fails, the app keeps working locally and logs a one-time browser
-console warning pointing at these variables.
+new frontend build/deploy.
 
 ## Dino radio
 
@@ -104,35 +126,33 @@ The station and its library are managed in AzuraCast; dino just hosts the widget
 
 ## Dino thoughts (speech bubble)
 
-In the original cut, the dino's musings were just another card kind sorted
-into a `thoughts` bin. They aren't first-class content though — they're
-flavour. The server now keeps a slow ticker driven by `server/sources/musings.mjs`
-(Claude Haiku when `ANTHROPIC_API_KEY` is set, hand-written fallback pool
-otherwise) and broadcasts each line as a `dino_thought` event over SSE/WS
-every ~90–150s. The client renders it as a brief speech bubble anchored
-above the dino's head (`src/dinoBubble.ts`), then fades out — no card, no
-courier, no archive. The pattern detector in `messages.ts` also funnels its
-"i keep hearing about X" observations into the same bubble.
+Zaur is the soul of the page, not a commentator. Every ~5–10 minutes the
+server broadcasts a small `dino_thought` over SSE, driven by
+`server/sources/musings.mjs` (Claude Haiku when `ANTHROPIC_API_KEY` is set,
+hand-written fallback pool otherwise), quietly grounded in whatever the
+editor recently published. The client renders it as a brief speech bubble
+anchored above the dino's head (`src/dinoBubble.ts`), then fades out — no
+card, no archive entry.
 
 ## What's inside
 
 ```
 src/
-├── main.ts            # entry point + dino/terrain orchestration
-├── world.ts           # animated sky, sun/moon, clouds, hills, ground
-├── dino.ts            # dino entity + tiny state machine (wander/seek/carry/deliver)
+├── main.ts            # entry point + dino/terrain orchestration + SSE
+├── world.ts           # animated sky, sun/moon, clouds, weather particles
+├── dino.ts            # dino entity + state machine + gravity
 ├── dinoBubble.ts      # ephemeral speech bubble for dino_thought events
 ├── sprite.ts          # canvas rendering for the dino frames
 ├── spriteFrames.ts    # programmatic pixel-art frames (vendored, no image files)
-├── textTerrain.ts     # scattered text blocks across the viewport
-├── weather.ts         # per-visitor weather card + ambient sky state
+├── textTerrain.ts     # story blocks scattered across the viewport (= platforms)
+├── weather.ts         # per-visitor weather + ambient sky state
 └── services/
-    └── content.ts     # shared ContentItem types
+    └── content.ts     # the shared Story model + categories
 
 server/                # standalone npm package (@anthropic-ai/sdk)
-├── server.mjs         # archive API, WebSocket authority, TTS/SFX proxies
-├── narrator.mjs       # server-side source scheduler and item picker
-└── sources/           # HN, DEV.to, quakes, facts, musings, space, birds
+├── server.mjs         # story archive, SSE stream, TTS proxy
+├── editor.mjs         # candidate pool, editorial pass (Claude or heuristic)
+└── sources/           # tech (HN), world (BBC+USGS), ukraine, science, rss, musings
 
 navidrome/
 └── entrypoint.sh      # boots Syncthing in the background and Navidrome up front
@@ -144,53 +164,26 @@ deploy/                # caprover.sh + the three captain-definitions
 infra/                 # listenbrainz-ingest + mediacms-ingest (music pipeline)
 ```
 
-## How a message gets sorted
+## Adding a new category or source
 
-1. Each server-side source produces scored items on its own refresh schedule.
-2. The archive `Narrator` keeps a deduped pool, ranks them (score + recency + a
-   diversity penalty so the same kind doesn't dominate), and creates an active
-   server-owned card.
-3. Connected browsers receive `item_spawned` over `/realtime`. Each client
-   queues active cards locally and only spawns a few at a time so one dino
-   does not get overwhelmed.
-4. The courier loop in `main.ts` looks at floating cards, claims one over the
-   realtime socket, and tells the dino to walk over.
-5. Dino seeks → grabs → carries the card above his head → walks down to the
-   bin matching that card's `kind` → drops it in.
-6. The client sends `deliver`; the server accepts the delivery, moves the card
-   into the shared archive, and broadcasts `item_delivered` so every browser
-   cancels any duplicate local work.
-
-While he has nothing to deliver, dino does his usual thing: walking,
-looking up, blinking, occasionally napping.
-
-## Adding a new shared content source
-
-Add a source module under `server/sources/` and register it in `server/server.mjs`:
+Add a source module under `server/sources/` and register it in
+`server/server.mjs`:
 
 ```js
 export const MarsWeather = {
   name: "mars-weather",
   refreshEveryMs: 30 * 60_000,
-  async fetchItems(signal) {
-    // fetch + map to { id, kind, text, href?, publishedAt, score }
+  async fetchCandidates(signal) {
+    // fetch + map to { id, category, title, description, href,
+    //                  sourceName, publishedAt, signal, meta? }
   },
 };
 ```
 
-If you introduce a new `ContentKind`, also add it to `src/services/content.ts`,
-`server/server.mjs`'s `ALLOWED_KINDS`, and the bin list in `src/main.ts`:
-
-```ts
-const messages = new MessageWorld(stage, [
-  { kind: "news",    label: "news",     icon: "▤" },
-  { kind: "thought", label: "thoughts", icon: "✦" },
-  { kind: "fact",    label: "facts",    icon: "❍" },
-], cssW, cssH);
-```
-
-That's the whole extension surface — dino will start sorting Mars weather on
-his own, mixed in with everything else.
+If you introduce a new category, also add it to `CATEGORIES` in
+`src/services/content.ts` and `server/server.mjs`, and give it an accent
+color in `src/styles.css` (`.terrain-block.kind-…`). The editor's budgets
+and the client's channel toggles pick it up automatically.
 
 ## Deploy
 
@@ -209,13 +202,15 @@ script is `deploy/caprover.sh`.
 
 ## Credits
 
-- News: [Hacker News API](https://github.com/HackerNews/API) and [DEV.to](https://dev.to/api)
+- Tech: [Hacker News API](https://github.com/HackerNews/API)
+- World: [BBC News RSS](https://www.bbc.co.uk/news/10628494) and the
+  [USGS](https://earthquake.usgs.gov/fdsnws/event/1/) earthquake feed
+- Ukraine: [The Guardian RSS](https://www.theguardian.com/world/ukraine) and
+  BBC's War in Ukraine topic feed
+- Science: [Ars Technica RSS](https://arstechnica.com/) and [NASA APOD](https://api.nasa.gov/)
 - Weather: [Open-Meteo](https://open-meteo.com/) (no API key required)
 - Approximate location: [ipapi.co](https://ipapi.co/) (falls back to London)
-- Earthquakes: [USGS](https://earthquake.usgs.gov/fdsnws/event/1/) feed
-- Space: [NASA APOD](https://api.nasa.gov/) and the asteroid feed
-- Birds: [eBird](https://documenter.getpostman.com/view/664302/S1ENwy59) recent observations
-- Musings: [Anthropic Claude](https://www.anthropic.com/) (Haiku) — optional
+- Editor & musings: [Anthropic Claude](https://www.anthropic.com/) (Haiku) — optional
 - Radio: [Radio Bartek](https://radiobartek.com/) on [AzuraCast](https://www.azuracast.com/) (embedded widget)
 
 ## License

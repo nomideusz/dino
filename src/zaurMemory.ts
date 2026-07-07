@@ -168,7 +168,7 @@ export class ZaurMemorySystem {
     }
 
     // Noteworthy events get remembered individually.
-    if (kind === "quake" || kind === "space") {
+    if (kind === "world" || kind === "ukraine") {
       this.mem.events.unshift({
         text: text.slice(0, 100),
         kind,
@@ -229,11 +229,7 @@ export class ZaurMemorySystem {
     if (recentEvent) {
       const ageHours = (Date.now() - recentEvent.at) / (1000 * 60 * 60);
       if (ageHours < 48) {
-        if (recentEvent.kind === "quake") {
-          lines.push(`last time you were here there was an earthquake. i'm still shaking. or that's just my normal state. hard to tell.`);
-        } else if (recentEvent.kind === "space") {
-          lines.push(`remember that space thing from last time? i've been thinking about it. the universe is big. i am small. the letters are medium.`);
-        }
+        lines.push(`the world kept happening while you were away. i saved the important parts. they're around here somewhere.`);
       }
     }
 

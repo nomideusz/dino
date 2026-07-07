@@ -1,12 +1,11 @@
-// Optional voice for dino's thoughts and ambient sound effects. When
-// enabled, each `dino_thought` event triggers a fetch to /tts and each
-// `dino_sfx` event a fetch to /sfx/<token>; the archive proxies/serves
-// the MP3 back, the browser plays it through a Blob URL that's revoked
-// as soon as playback ends — nothing is persisted.
+// Optional voice for dino's thoughts. When enabled, each `dino_thought`
+// event triggers a fetch to /tts; the archive proxies the MP3 back and the
+// browser plays it through a Blob URL that's revoked as soon as playback
+// ends — nothing is persisted.
 //
 // Browsers block autoplay until the user has interacted with the page;
-// the radio's voice toggle (rendered in messages.ts) acts as that gesture
-// so subsequent `audio.play()` calls succeed.
+// the radio's voice toggle acts as that gesture so subsequent
+// `audio.play()` calls succeed.
 
 const STORAGE_KEY = "dino-voice-enabled";
 
@@ -67,17 +66,6 @@ export class DinoVoice {
         console.warn("[voice] speech synthesis fallback failed:", err);
       }
     }
-  }
-
-  /**
-   * Play an ambient sfx clip from a relative archive path (e.g.
-   * "/sfx/<token>") or an absolute URL. Same playback path as `say()` —
-   * gated by the voice toggle and aborted if a fresh thought/sfx arrives.
-   */
-  async playSfx(path: string): Promise<void> {
-    if (!path) return;
-    const url = /^https?:/i.test(path) ? path : `${this.archiveUrl}${path}`;
-    await this.fetchAndPlay((signal) => fetch(url, { signal }));
   }
 
   private async fetchAndPlay(

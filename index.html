@@ -6,7 +6,7 @@
     <meta name="theme-color" content="#14141a" />
     <meta
       name="description"
-      content="Zaur, a tiny pixel dinosaur living between the letters."
+      content="A quiet page of important news, kept by Zaur — a tiny pixel dinosaur living between the letters. No feed, no ads, no sign-in."
     />
     <title>zaur • between the lines</title>
     <link rel="preload" href="/fonts/IoskeleyMono-Regular.woff2" as="font" type="font/woff2" crossorigin />
@@ -48,20 +48,15 @@
       <!-- System status -->
       <div id="system-msg" class="system-message">// zaur is waking up...</div>
 
-      <!-- Bottom controls & interactive prompt -->
+      <!-- Bottom controls: category channels + camera. No prompt, no feed. -->
       <div class="bottom-bar">
         <div class="bottom-bar-inner">
-          <form id="chat-form" class="chat-form">
-            <span class="prompt-arrow">&gt;</span>
-            <input type="text" id="chat-input" placeholder="say something to zaur..." autocomplete="off" />
-          </form>
+          <div id="channels" class="channels" aria-label="Categories"></div>
           <div class="controls">
             <button id="camera-btn" class="control-btn" title="Take a picture of Zaur">📸</button>
           </div>
         </div>
       </div>
-
-
     </main>
 
     <noscript>

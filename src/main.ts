@@ -1,11 +1,12 @@
 // Entry point. Sets up the canvas + DPR scaling, builds the world and the
 // dino, and runs the main animation loop.
 //
-// In this rebuild, text blocks are scattered across the full viewport as
-// terrain. Zaur walks between them, stands on them, and reacts to content.
-// The world canvas is dimmed to a soft backdrop behind the letters.
+// The page is a quiet reading room: the server's editor publishes only a
+// few important stories per category per day, and they appear here as
+// scattered text blocks — terrain Zaur walks on. No prompt, no feed churn,
+// no sign-in. Zaur is the soul of the place, not a commentator.
 
-import { Dino, type Mood } from "./dino.js";
+import { Dino } from "./dino.js";
 import { DinoAmbient } from "./dinoBehavior.js";
 import { DinoBubble } from "./dinoBubble.js";
 import { DinoVoice } from "./dinoVoice.js";
@@ -14,13 +15,13 @@ import { World } from "./world.js";
 import { typewriter } from "./typewriter.js";
 import { TextTerrain } from "./textTerrain.js";
 import { ZaurMemorySystem } from "./zaurMemory.js";
-import type { ContentItem } from "./services/content.js";
+import { CATEGORIES, type Category, type Story } from "./services/content.js";
 
 const ARCHIVE_API_URL = (
   import.meta.env.VITE_ARCHIVE_URL ?? "https://dino-archive.zaur.app"
 ).replace(/\/$/, "");
 
-// ── Return greeting ──────────────────────────────────────────────────
+// ── Return greeting (small bubble, not an overlay) ───────────────────
 
 const LAST_VISIT_KEY = "zaur-last-visit";
 
@@ -31,27 +32,13 @@ function getReturnGreeting(): string | null {
     if (!last) return null;
 
     const goneMs = Date.now() - Number(last);
-    const goneMin = goneMs / 60_000;
-    const goneHrs = goneMin / 60;
-    const goneDays = goneHrs / 24;
+    const goneHrs = goneMs / 3_600_000;
+    if (goneHrs < 6) return null; // don't greet on quick returns
 
-    if (goneMin < 5) return null; // just refreshed
-
-    if (goneMin < 60) {
-      return "oh. you again. i wasn't doing anything weird. definitely not eating punctuation.";
+    if (goneHrs < 48) {
+      return "oh, you're back. a few things happened while you were away.";
     }
-    if (goneHrs < 6) {
-      const hrs = Math.round(goneHrs);
-      return `${hrs} hour${hrs > 1 ? "s" : ""}?? i had to read ALL the news by myself. do you know how hard that is with two-pixel arms?`;
-    }
-    if (goneDays < 2) {
-      return "a whole day. i ate three semicolons and a paragraph while you were gone. i'm not sorry. a dino's gotta eat.";
-    }
-    if (goneDays < 7) {
-      const d = Math.round(goneDays);
-      return `...you were gone ${d} days. i've been sitting on this period for ${d * 24} hours. my legs are asleep. all four of them. wait. i have two. see? i already forgot.`;
-    }
-    return "i thought you forgot about me. i've been here the whole time. the letters kept me company. mostly the letter Q. Q is nice.";
+    return "you were gone a while. i kept the important ones for you.";
   } catch {
     return null;
   }
@@ -74,92 +61,67 @@ let pokeResetTimer = 0;
 function getIdleComment(hour: number): string {
   const pool: string[] = [];
 
-  // Time-of-day flavored lines
   if (hour >= 6 && hour < 9) {
     pool.push(
-      "good morning world! everything is terrifying! let's go!",
       "the sunrise looks like someone spilled orange juice on the sky.",
       "i slept inside the letter O last night. very round. very comforting.",
-      "stretching my tiny arms... stretch... okay that's enough exercise for today.",
     );
   } else if (hour >= 11 && hour < 14) {
     pool.push(
       "is it lunch? it feels like lunch. everything feels like lunch when you're a dinosaur.",
-      "peak productivity hours. *stares at a comma for ten minutes*",
       "i have strong opinions about this font. mostly that it's my home.",
     );
   } else if (hour >= 14 && hour < 17) {
     pool.push(
-      "do you ever wonder if the letter W is just M upside down? or if M is W upside down? who came first?",
       "the afternoon light makes everything look like a memory.",
-      "i think periods are just full stops that wanted to be something more.",
       "sometimes i sit here and think about the asteroid. other times i think about ferns.",
     );
   } else if (hour >= 17 && hour < 20) {
     pool.push(
       "the sky is doing that thing again. the pretty one. with the colors.",
-      "today i learned... wait. i forgot. i learned something though. probably.",
       "evening is when the letters get sleepy. look. that lowercase 'e' is yawning.",
     );
   } else if (hour >= 20 || hour < 5) {
     pool.push(
-      "*yawn* the letters are going to sleep. i should... *yawn*... also...",
       "night is when the dots in the grid come alive. i've been watching them.",
-      "did you know nocturnal dinosaurs were a thing? i'm not one. i'm just... still awake.",
       "the moon is out. i wonder if it remembers the asteroid too.",
     );
   }
 
-  // Universal lines
   pool.push(
-    "is that a comma? it looks delicious.",
-    "my tail is getting caught in the margins again.",
     "monospaced fonts make me feel so organized. everything lines up. even my existential dread.",
     "i wonder what's written on the other side of the screen.",
-    "this paragraph is nice and cozy. i might stay here forever. or five seconds. same thing.",
     "the letter Q has a tail too. we're basically related.",
-    "i just realized i can't actually read. i've been pretending this whole time.",
     "if i stand still long enough, do i become a glyph?",
-    "sometimes i think about how space is infinite. then i think about ferns. ferns are better.",
     "small reminder: the asteroid wasn't personal. probably.",
   );
 
   return pool[Math.floor(Math.random() * pool.length)];
 }
 
-// ── Punctuation reactions ────────────────────────────────────────────
+// ── Category preferences ─────────────────────────────────────────────
 
-function scanForPunctuationReaction(text: string): string | null {
-  // Only trigger occasionally
-  if (Math.random() > 0.35) return null;
-  
-  const hasExclaim = /!{2,}/.test(text) || /[A-Z]{5,}/.test(text);
-  const hasQuestion = /\?{2,}/.test(text);
-  const hasEllipsis = /\.{3,}/.test(text);
-  
-  if (hasExclaim) {
-    const lines = [
-      "ALL THOSE EXCLAMATION MARKS. my tiny ears.",
-      "why is everyone YELLING. this is a library. of letters. that i live in.",
-      "the capital letters are so loud today.",
-    ];
-    return lines[Math.floor(Math.random() * lines.length)];
+const CHANNELS_KEY = "dino-channels";
+
+function loadChannels(): Set<Category> {
+  try {
+    const raw = localStorage.getItem(CHANNELS_KEY);
+    if (!raw) return new Set(CATEGORIES);
+    const parsed = JSON.parse(raw) as unknown;
+    if (!Array.isArray(parsed)) return new Set(CATEGORIES);
+    const valid = parsed.filter((c): c is Category => CATEGORIES.includes(c as Category));
+    return valid.length > 0 ? new Set(valid) : new Set(CATEGORIES);
+  } catch {
+    return new Set(CATEGORIES);
   }
-  if (hasQuestion) {
-    const lines = [
-      "so many questions. i don't have answers. i barely have arms.",
-      "?? i don't know either. let me ask this semicolon.",
-    ];
-    return lines[Math.floor(Math.random() * lines.length)];
+}
+
+function saveChannels(channels: Set<Category>): void {
+  try {
+    localStorage.setItem(CHANNELS_KEY, JSON.stringify([...channels]));
+  } catch {
+    // Private mode — runtime state still applies.
   }
-  if (hasEllipsis) {
-    const lines = [
-      "the dot dot dot is making me... sleepy...",
-      "ellipsis. the suspense. i can't handle... *falls asleep*",
-    ];
-    return lines[Math.floor(Math.random() * lines.length)];
-  }
-  return null;
 }
 
 // ── Main app ─────────────────────────────────────────────────────────
@@ -174,8 +136,7 @@ function startApp(stage: HTMLElement, worldCanvas: HTMLCanvasElement, dinoCanvas
   // DOM Elements
   const terrainEl = document.getElementById("terrain") as HTMLElement;
   const systemMsg = document.getElementById("system-msg") as HTMLElement;
-  const chatForm = document.getElementById("chat-form") as HTMLFormElement;
-  const chatInput = document.getElementById("chat-input") as HTMLInputElement;
+  const channelsEl = document.getElementById("channels") as HTMLElement;
   const cameraBtn = document.getElementById("camera-btn") as HTMLButtonElement;
   const voiceBtn = document.getElementById("voice-btn") as HTMLButtonElement;
 
@@ -188,7 +149,6 @@ function startApp(stage: HTMLElement, worldCanvas: HTMLCanvasElement, dinoCanvas
     cssH = stage.clientHeight;
     dpr = Math.max(1, window.devicePixelRatio || 1);
 
-    // Size both canvases identically.
     for (const c of [worldCanvas, dinoCanvas]) {
       c.width = Math.round(cssW * dpr);
       c.height = Math.round(cssH * dpr);
@@ -220,18 +180,14 @@ function startApp(stage: HTMLElement, worldCanvas: HTMLCanvasElement, dinoCanvas
   const ambient = new DinoAmbient(dino, () => weather.conditions());
   ambient.onWeatherComment = (line) => {
     bubble.show(line);
-    // Voice for dramatic weather moments.
-    if (isVoiceEnabled && line.includes("!")) {
-      void voice.say(line);
-    }
   };
 
-  // Text terrain system — scattered across the viewport.
+  // Story terrain — scattered across the viewport.
   const terrain = new TextTerrain(terrainEl, {
     viewW: cssW,
     viewH: cssH,
     marginX: 24,
-    marginTop: 80,
+    marginTop: 150,
     marginBottom: 80,
   });
 
@@ -244,13 +200,46 @@ function startApp(stage: HTMLElement, worldCanvas: HTMLCanvasElement, dinoCanvas
     };
   };
 
-  // Track rendered item IDs to prevent duplicates.
-  const renderedItemIds = new Set<string>();
+  // Track rendered story IDs to prevent duplicates.
+  const renderedStoryIds = new Set<string>();
 
   // Zaur's cross-session memory.
   const memory = new ZaurMemorySystem();
 
-  // ── Audio/Voice system toggles ────────────────────────────────────
+  // ── Category channels ─────────────────────────────────────────────
+
+  const channels = loadChannels();
+
+  function applyChannels(): void {
+    const all = channels.size === CATEGORIES.length;
+    terrain.setVisibleCategories(all ? null : channels);
+    for (const btn of channelsEl.querySelectorAll<HTMLButtonElement>("[data-category]")) {
+      const cat = btn.dataset.category as Category;
+      btn.classList.toggle("active", channels.has(cat));
+    }
+  }
+
+  for (const category of CATEGORIES) {
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "channel-btn";
+    btn.dataset.category = category;
+    btn.textContent = category;
+    btn.addEventListener("click", () => {
+      if (channels.has(category)) {
+        // Never allow zero channels — the page would be empty forever.
+        if (channels.size > 1) channels.delete(category);
+      } else {
+        channels.add(category);
+      }
+      saveChannels(channels);
+      applyChannels();
+    });
+    channelsEl.appendChild(btn);
+  }
+  applyChannels();
+
+  // ── Voice toggle ──────────────────────────────────────────────────
 
   let isVoiceEnabled = voice.isEnabled();
   voiceBtn.textContent = isVoiceEnabled ? "🔊" : "🔇";
@@ -260,488 +249,83 @@ function startApp(stage: HTMLElement, worldCanvas: HTMLCanvasElement, dinoCanvas
     isVoiceEnabled = voice.toggle();
     voiceBtn.textContent = isVoiceEnabled ? "🔊" : "🔇";
     voiceBtn.classList.toggle("active", isVoiceEnabled);
-    if (isVoiceEnabled) {
-      void voice.playSfx("/sfx/chime");
-    }
-    connectSse();
   });
 
   // ── Return greeting ───────────────────────────────────────────────
 
   const greeting = getReturnGreeting();
   if (greeting) {
-    const greetEl = document.createElement("div");
-    greetEl.className = "return-greeting";
-    greetEl.textContent = "";
-    stage.appendChild(greetEl);
-    
-    // Typewriter the greeting.
     setTimeout(() => {
-      void typewriter(greetEl, greeting, { cps: 30, playClick: false }).then(() => {
-        // Fade out after reading.
-        setTimeout(() => {
-          greetEl.classList.add("return-greeting--fading");
-          setTimeout(() => greetEl.remove(), 1500);
-        }, 5000);
-      });
-    }, 800);
-
-    // Zaur reacts to the returning visitor.
-    setTimeout(() => {
-      dino.react("excited", 2000);
-      // Use memory greeting if available, otherwise generic.
-      const memGreeting = memory.getMemoryGreeting();
-      bubble.show(memGreeting ?? "you're back!!");
-    }, 1200);
+      dino.react("happy", 1800);
+      bubble.show(memory.getMemoryGreeting() ?? greeting);
+    }, 2500);
   }
 
-  // ── Queue for staggered typewriter rendering ──────────────────────
-  const typewriterQueue: ContentItem[] = [];
+  // ── Queue for staggered story rendering ───────────────────────────
 
-  function escapeHtml(str: string): string {
-    return str
-      .replace(/&/g, "&amp;")
-      .replace(/</g, "&lt;")
-      .replace(/>/g, "&gt;")
-      .replace(/"/g, "&quot;")
-      .replace(/'/g, "&#039;");
-  }
+  const storyQueue: Story[] = [];
 
-  function awaitDinoArrival(targetX: number, targetY: number): Promise<void> {
-    return new Promise((resolve) => {
-      let attempts = 0;
-      const check = () => {
-        attempts++;
-        const dist = Math.hypot(dino.position.x - targetX, dino.position.y - targetY);
-        // Arrived, or Dino went back to idle/wandering (finished walk), or timeout
-        if (
-          dist < 32 ||
-          dino.state === "idle" ||
-          dino.state === "look" ||
-          dino.state === "stare" ||
-          attempts > 100
-        ) {
-          resolve();
-        } else {
-          setTimeout(check, 100);
-        }
-      };
-      check();
-    });
-  }
-
-  async function eatLetterAnimation(block: import("./textTerrain.js").TerrainBlock): Promise<string | null> {
-    const textEl = block.el.querySelector("[data-text-content]") as HTMLElement;
-    if (!textEl) return null;
-    const rawText = textEl.textContent || "";
-    if (!rawText) return null;
-
-    // Find indices of punctuation first, they are tastier.
-    const punctRegex = /[\.,;!\?\(\)\[\]\{\}\-\"\']/g;
-    const indices: number[] = [];
-    let match;
-    while ((match = punctRegex.exec(rawText)) !== null) {
-      indices.push(match.index);
-    }
-
-    // If no punctuation, pick any letter or number.
-    if (indices.length === 0) {
-      const letterRegex = /[a-zA-Z0-9]/g;
-      while ((match = letterRegex.exec(rawText)) !== null) {
-        indices.push(match.index);
-      }
-    }
-
-    if (indices.length === 0) return null;
-
-    // Pick a random index.
-    const targetIdx = indices[Math.floor(Math.random() * indices.length)];
-    const char = rawText[targetIdx];
-
-    const before = rawText.slice(0, targetIdx);
-    const after = rawText.slice(targetIdx + 1);
-
-    // Make it flash!
-    textEl.innerHTML = `${escapeHtml(before)}<span class="eaten-letter-flash">${escapeHtml(char)}</span>${escapeHtml(after)}`;
-
-    // Wait 500ms.
-    await new Promise((r) => setTimeout(r, 500));
-
-    // Replace the letter with a space so the block length remains identical and doesn't shift layout.
-    textEl.innerHTML = `${escapeHtml(before)} <span style="opacity: 0;">${escapeHtml(char)}</span>${escapeHtml(after)}`;
-
-    return char;
-  }
-
-  function processTypewriterQueue(): void {
-    if (typewriterQueue.length === 0) {
-      setTimeout(processTypewriterQueue, 2500);
+  function processStoryQueue(): void {
+    if (storyQueue.length === 0) {
+      setTimeout(processStoryQueue, 2500);
       return;
     }
 
     const isTyping = terrain.blocks.some((b) => b.typing);
-    if (!dino.isAvailable || isTyping) {
-      setTimeout(processTypewriterQueue, 2500);
+    if (isTyping) {
+      setTimeout(processStoryQueue, 2500);
       return;
     }
 
-    const nextItem = typewriterQueue.shift();
-    if (nextItem) {
-      renderItem(nextItem, true);
-    }
+    const next = storyQueue.shift();
+    if (next) renderStory(next, true);
 
-    const nextDelay = 18000 + Math.random() * 9000; // occasionally show up, e.g. 18-27s
-    setTimeout(processTypewriterQueue, nextDelay);
+    const nextDelay = 9000 + Math.random() * 6000;
+    setTimeout(processStoryQueue, nextDelay);
   }
 
-  // Start the queue processor after a brief startup delay.
-  setTimeout(processTypewriterQueue, 5000);
+  setTimeout(processStoryQueue, 4000);
 
-  // ── Content rendering ─────────────────────────────────────────────
+  // ── Story rendering ───────────────────────────────────────────────
 
-  function renderItem(item: ContentItem, isNew: boolean): void {
-    if (renderedItemIds.has(item.id)) return;
-    renderedItemIds.add(item.id);
+  function renderStory(story: Story, isNew: boolean): void {
+    if (renderedStoryIds.has(story.id)) return;
+    renderedStoryIds.add(story.id);
 
-    const block = terrain.place(item, isNew);
+    const block = terrain.place(story, isNew);
     if (!block) return;
 
+    memory.noteArticle(`${story.title} ${story.summary}`, story.category);
+
     if (isNew) {
-      const textEl = block.el.querySelector("[data-text-content]") as HTMLElement;
+      const textEl = block.el.querySelector(".tb-text") as HTMLElement;
       if (textEl) {
-        void typewriter(textEl, item.text, { cps: 38, playClick: isVoiceEnabled }).then(() => {
+        void typewriter(textEl, story.summary, { cps: 42, playClick: false }).then(() => {
           textEl.classList.remove("typing-cursor");
           block.typing = false;
-
-          // Zaur reacts to the new article!
-          triggerDinoReaction(item, block);
+          visitStoryQuietly(block);
         });
+      } else {
+        block.typing = false;
       }
     }
   }
 
-  // ── Zaur reactions ────────────────────────────────────────────────
-
-  async function triggerDinoReaction(item: ContentItem, block: import("./textTerrain.js").TerrainBlock): Promise<void> {
-    // Walk to the new block.
+  /**
+   * Zaur notices a new story: he wanders over, stands on it, and reads for
+   * a moment. No bubble, no noise — he's curious, not a commentator.
+   */
+  function visitStoryQuietly(block: import("./textTerrain.js").TerrainBlock): void {
+    if (block.hidden || !dino.isAvailable) return;
     const targetX = block.x + block.w / 2;
     const targetY = block.y - dino.heightPx;
     dino.goTo(targetX, targetY);
-    dino.react("surprised", 800);
-
-    // Fetch the reaction in parallel while Zaur is walking.
-    const commentPromise = (async () => {
-      let resComment: string | null = null;
-      try {
-        const resp = await fetch(`${ARCHIVE_API_URL}/api/zaur-react`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ kind: item.kind, text: item.text }),
-        });
-        if (resp.ok) {
-          const body = await resp.json();
-          resComment = body.text;
-        }
-      } catch {
-        // Fall through
-      }
-      if (!resComment) {
-        resComment = scanForPunctuationReaction(item.text);
-      }
-      if (!resComment) {
-        resComment = getFallbackReaction(item);
-      }
-      return resComment;
-    })();
-
-    // Earthquake shake — magnitude-aware intensity.
-    if (item.kind === "quake") {
-      // Parse magnitude from text (e.g. "M5.2" or "magnitude 5.2").
-      const magMatch = item.text.match(/(?:M|magnitude\s*)(\d+\.?\d*)/i);
-      const magnitude = magMatch ? parseFloat(magMatch[1]) : 3.0;
-      const intensity = Math.min(3, Math.max(0.5, magnitude / 3));
-
-      stage.style.setProperty("--shake-intensity", `${intensity}`);
-      terrainEl.style.setProperty("--shake-intensity", `${intensity}`);
-      terrainEl.classList.add("earthquake-shake");
-      stage.classList.add("earthquake-shake");
-      const shakeDur = 400 + Math.round(magnitude * 100);
-      setTimeout(() => {
-        terrainEl.classList.remove("earthquake-shake");
-        stage.classList.remove("earthquake-shake");
-        stage.style.removeProperty("--shake-intensity");
-        terrainEl.style.removeProperty("--shake-intensity");
-      }, shakeDur);
-
-      // Screen flash for big quakes (M5.0+).
-      if (magnitude >= 5.0) {
-        const flash = document.createElement("div");
-        flash.className = "earthquake-flash";
-        stage.appendChild(flash);
-        setTimeout(() => flash.remove(), 600);
-      }
-    }
-
-    // Note the article in Zaur's memory.
-    memory.noteArticle(item.text, item.kind);
-
-    // Wait for Dino to arrive near the block.
-    await awaitDinoArrival(targetX, targetY);
-
-    // Face the target (forces dino to face it properly upon arrival).
-    dino.goTo(targetX, targetY);
-
-    // Eat a letter!
-    let eatenChar: string | null = null;
-    try {
-      eatenChar = await eatLetterAnimation(block);
-    } catch (err) {
-      console.warn("[eat] failed to eat letter:", err);
-    }
-
-    if (eatenChar) {
-      dino.react("happy", 1200);
-      block.el.style.transform = "scale(0.97) translateY(1px)";
-      setTimeout(() => {
-        block.el.style.transform = "";
-      }, 150);
-      // Wait for chew animation to finish/partially run.
-      await new Promise((r) => setTimeout(r, 1000));
-    }
-
-    let comment = await commentPromise;
-
-    if (eatenChar && comment) {
-      // 60% chance to comment on the character eaten
-      if (Math.random() < 0.6) {
-        const foodJokes = [
-          `nom. that '${eatenChar}' was crunchy.`,
-          `burp. that '${eatenChar}' was a bit stale.`,
-          `i ate the '${eatenChar}'. you didn't need it anyway.`,
-          `that '${eatenChar}' tasted like pixels.`,
-          `crunchy '${eatenChar}'. 7/10.`,
-          `the '${eatenChar}' was the best part of this text.`,
-        ];
-        const joke = foodJokes[Math.floor(Math.random() * foodJokes.length)];
-        comment = `${joke} ${comment}`;
-      }
-    }
-
-    if (comment) {
-      bubble.show(comment);
-      if (isVoiceEnabled && (item.kind === "quake" || item.kind === "space")) {
-        void voice.say(comment);
-      }
-    }
+    setTimeout(() => {
+      if (dino.isAvailable) dino.react("curious", 2600);
+    }, 3500);
   }
-
-  function getFallbackReaction(item: ContentItem): string {
-    const pools: Record<string, string[]> = {
-      quake: [
-        "the ground is having feelings again. i don't like it when the ground has feelings.",
-        "earthquakes are the planet's way of saying it's uncomfortable. same, earth. same.",
-        "my tail is vibrating at a frequency i can't identify. is this fear? or indigestion?",
-        "the letters are falling off the page. or i'm shaking. hard to tell.",
-      ],
-      space: [
-        "that's so far away it doesn't exist for me. but i still worry about it.",
-        "space is infinite. my arms are not. this feels relevant somehow.",
-        "do you think the stars remember the dinosaurs? i hope so.",
-        "thirteen billion light years is a long walk. even for someone with my dedication.",
-      ],
-      bird: [
-        "a bird. my distant cousin who got the flying upgrade and i got... this. these arms.",
-        "birds are just dinosaurs who figured out how to leave. i stayed. i have my reasons.",
-        "every time i see a bird i think about what could have been. then i think about ferns.",
-      ],
-      fact: [
-        "that's either deeply profound or completely useless. possibly both.",
-        "i will remember this fact for exactly four seconds. three. two. what were we talking about?",
-        "fascinating. did you know that i can't actually read? i've been faking it since the Cretaceous.",
-      ],
-      news: [
-        "humans are doing things again. brave, confusing things.",
-        "i read this three times and understood it less each time. classic news.",
-        "this makes me want to hide inside a parenthesis and think about it for a while.",
-        "interesting. concerning. i'm going to pretend i understand the implications.",
-      ],
-    };
-    const pool = pools[item.kind] ?? pools.news!;
-    return pool[Math.floor(Math.random() * pool.length)];
-  }
-
-  // ── Interactive chat ──────────────────────────────────────────────
-
-  chatForm.addEventListener("submit", async (ev) => {
-    ev.preventDefault();
-    const text = chatInput.value.trim();
-    if (!text) return;
-
-    chatInput.value = "";
-
-    // Render user's message as a terrain block near the bottom.
-    const userItem: ContentItem = {
-      id: `user-${Date.now()}`,
-      kind: "news" as ContentItem["kind"],
-      text,
-      publishedAt: Date.now(),
-      score: 0.3,
-    };
-    renderedItemIds.add(userItem.id);
-
-    const userBlock = terrain.place(userItem, true);
-    if (userBlock) {
-      userBlock.el.classList.add("kind-user");
-      userBlock.el.classList.remove("kind-news");
-      const textEl = userBlock.el.querySelector("[data-text-content]") as HTMLElement;
-      if (textEl) {
-        textEl.textContent = text;
-        textEl.classList.remove("typing-cursor");
-      }
-      const metaEl = userBlock.el.querySelector(".tb-meta") as HTMLElement;
-      if (metaEl) metaEl.textContent = "you";
-    }
-
-    // Zaur gets excited and moves to the user's message.
-    dino.react("excited", 800);
-    let eatenCharPromise: Promise<string | null> = Promise.resolve(null);
-    if (userBlock) {
-      const tx = userBlock.x + userBlock.w / 2;
-      const ty = userBlock.y - dino.heightPx;
-      dino.goTo(tx, ty);
-      eatenCharPromise = (async () => {
-        await awaitDinoArrival(tx, ty);
-        let eaten: string | null = null;
-        try {
-          eaten = await eatLetterAnimation(userBlock);
-        } catch {
-          // ignore
-        }
-        if (eaten) {
-          dino.react("happy", 1200);
-          userBlock.el.style.transform = "scale(0.97) translateY(1px)";
-          setTimeout(() => {
-            userBlock.el.style.transform = "";
-          }, 150);
-          await new Promise((r) => setTimeout(r, 1000));
-        }
-        return eaten;
-      })();
-    }
-
-    // Check if user is introducing themselves.
-    const foundName = memory.checkForName(text);
-    if (foundName) {
-      void eatenCharPromise.then(() => {
-        setTimeout(() => {
-          bubble.show(`nice to meet you, ${memory.userName}. i'm zaur. i don't have a last name.`);
-        }, 300);
-      });
-    }
-
-    try {
-      const resp = await fetch(`${ARCHIVE_API_URL}/api/zaur-talk`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ message: text }),
-      });
-
-      if (resp.ok) {
-        const body = await resp.json();
-        const reply = body.text;
-
-        // Render Zaur's reply as a terrain block.
-        const replyItem: ContentItem = {
-          id: `zaur-${Date.now()}`,
-          kind: "fact" as ContentItem["kind"],
-          text: reply,
-          publishedAt: Date.now(),
-          score: 0.5,
-        };
-        renderedItemIds.add(replyItem.id);
-
-        // Wait for Zaur to finish eating the user's message before responding!
-        await eatenCharPromise;
-
-        const replyBlock = terrain.place(replyItem, true);
-        if (replyBlock) {
-          replyBlock.el.classList.add("kind-zaur");
-          replyBlock.el.classList.remove("kind-fact");
-          const textEl = replyBlock.el.querySelector("[data-text-content]") as HTMLElement;
-          const metaEl = replyBlock.el.querySelector(".tb-meta") as HTMLElement;
-          if (metaEl) metaEl.textContent = "zaur";
-          if (textEl) {
-            await typewriter(textEl, reply, { cps: 35, playClick: isVoiceEnabled });
-            textEl.classList.remove("typing-cursor");
-          }
-        }
-
-        dino.react("happy", 1200);
-        bubble.show(reply.length > 80 ? reply.slice(0, 77) + "..." : reply);
-        if (isVoiceEnabled) void voice.say(reply);
-      } else {
-        throw new Error("API call error");
-      }
-    } catch {
-      await eatenCharPromise;
-      dino.react("sad", 1000);
-      bubble.show("rawr! i got distracted by a shiny dot! what were we talking about?");
-    }
-  });
 
   // ── Easter eggs ──────────────────────────────────────────────────
-
-  // Magic words in chat — intercept before the API call by checking
-  // the chat form's submit handler. We inject them into the existing
-  // flow by watching the chat input for special keywords.
-  const MAGIC_WORDS: Record<string, { mood: Mood; line: string; action?: () => void }> = {
-    fern: {
-      mood: "sad",
-      line: "you said the magic word. *sniff* ferns are the only thing that survived with me. they're all i have. besides you. and these letters.",
-    },
-    rawr: {
-      mood: "excited",
-      line: "RAWR!! that's dinosaur for 'i appreciate your existence but i'm too cool to say it directly'. *tiny roar*",
-    },
-    asteroid: {
-      mood: "sad",
-      line: "we don't... we don't talk about that. *sits on a period and stares at nothing* i'm fine. i'm fine.",
-    },
-    meteor: {
-      mood: "surprised",
-      line: "INCOMING!! wait. it's just a pixel. a very fast pixel. *hides behind the letter B*",
-      action: () => {
-        // Fire a pixel meteor across the screen.
-        const meteor = document.createElement("div");
-        meteor.className = "easter-meteor";
-        stage.appendChild(meteor);
-        setTimeout(() => meteor.remove(), 2000);
-      },
-    },
-    "42": {
-      mood: "curious",
-      line: "the answer to life, the universe, and everything. but what's the question? i think it's about ferns.",
-    },
-    "hello": {
-      mood: "happy",
-      line: "hello! hi! hey! greetings! salutations! *waves with arms that cannot wave* ...hi.",
-    },
-  };
-
-  // Intercept magic words in the chat submit — check before the API call.
-  chatForm.addEventListener("submit", (ev) => {
-    const text = chatInput.value.trim().toLowerCase();
-    const magic = MAGIC_WORDS[text];
-    if (magic) {
-      ev.preventDefault();
-      ev.stopImmediatePropagation();
-      chatInput.value = "";
-      dino.react(magic.mood, 2000);
-      bubble.show(magic.line);
-      if (isVoiceEnabled) void voice.say(magic.line);
-      magic.action?.();
-    }
-  }, true); // Capture phase — runs before the main handler.
 
   // Konami code: ↑↑↓↓←→←→BA → Zaur puts on sunglasses.
   const KONAMI = ["ArrowUp", "ArrowUp", "ArrowDown", "ArrowDown", "ArrowLeft", "ArrowRight", "ArrowLeft", "ArrowRight", "b", "a"];
@@ -776,25 +360,21 @@ function startApp(stage: HTMLElement, worldCanvas: HTMLCanvasElement, dinoCanvas
     if (isCapturing) return;
     isCapturing = true;
 
-    // React to being photographed.
     dino.react("surprised", 1500);
     setTimeout(() => {
       bubble.show("did you just... screenshot me? i wasn't ready! my pixels were relaxed!");
     }, 800);
 
-    // Hide UI elements.
     document.body.classList.add("capturing");
-    
-    // Add watermark.
+
     const watermark = document.createElement("div");
     watermark.className = "screenshot-watermark";
     watermark.textContent = "dino.zaur.app";
     stage.appendChild(watermark);
 
     try {
-      // Dynamic import to avoid blocking initial load.
       const { toBlob } = await import("html-to-image");
-      
+
       const blob = await toBlob(stage, {
         quality: 0.95,
         backgroundColor: "#14141a",
@@ -803,7 +383,6 @@ function startApp(stage: HTMLElement, worldCanvas: HTMLCanvasElement, dinoCanvas
           transformOrigin: "top left",
         },
         filter: (node) => {
-          // Don't capture UI controls or chat form.
           if (node instanceof HTMLElement) {
             if (node.classList?.contains("bottom-bar")) return false;
             if (node.classList?.contains("radio-widget")) return false;
@@ -813,7 +392,6 @@ function startApp(stage: HTMLElement, worldCanvas: HTMLCanvasElement, dinoCanvas
       });
 
       if (blob) {
-        // Download.
         const url = URL.createObjectURL(blob);
         const a = document.createElement("a");
         a.href = url;
@@ -821,7 +399,6 @@ function startApp(stage: HTMLElement, worldCanvas: HTMLCanvasElement, dinoCanvas
         a.click();
         URL.revokeObjectURL(url);
 
-        // Copy to clipboard if supported.
         try {
           if (navigator.clipboard && window.ClipboardItem) {
             await navigator.clipboard.write([new ClipboardItem({ "image/png": blob })]);
@@ -842,9 +419,8 @@ function startApp(stage: HTMLElement, worldCanvas: HTMLCanvasElement, dinoCanvas
 
   cameraBtn.addEventListener("click", captureScreenshot);
 
-  // Press 's' to screenshot (if not typing in chat).
   document.addEventListener("keydown", (ev) => {
-    if (ev.key === "s" && document.activeElement !== chatInput) {
+    if (ev.key === "s" && !(ev.target instanceof HTMLInputElement)) {
       void captureScreenshot();
     }
   });
@@ -854,18 +430,18 @@ function startApp(stage: HTMLElement, worldCanvas: HTMLCanvasElement, dinoCanvas
   stage.addEventListener("pointerdown", (ev) => {
     if (ev.button !== 0) return;
     const target = ev.target;
-    if (target instanceof Element && target.closest("button, a, select, input, form, .radio-widget")) {
+    if (target instanceof Element && target.closest("button, a, select, input, form, .radio-widget, .terrain-block")) {
       return;
     }
     const rect = stage.getBoundingClientRect();
     const px = ev.clientX - rect.left;
     const py = ev.clientY - rect.top;
 
-    // Check if poke on Dino — escalating reactions.
+    // Poke on Dino — escalating reactions.
     if (dino.contains(px, py)) {
       if (pokeResetTimer) clearTimeout(pokeResetTimer);
       pokeResetTimer = window.setTimeout(() => { pokeCount = 0; }, 8000);
-      
+
       const lineIdx = Math.min(pokeCount, POKE_LINES.length - 1);
       const line = POKE_LINES[lineIdx];
       pokeCount++;
@@ -874,10 +450,8 @@ function startApp(stage: HTMLElement, worldCanvas: HTMLCanvasElement, dinoCanvas
         // Run off screen!
         dino.react("angry", 600);
         bubble.show(line);
-        if (isVoiceEnabled) void voice.say(line);
         const offX = dino.bubbleAnchor.x < cssW / 2 ? cssW + 100 : -100;
         dino.goTo(offX, dino.bubbleAnchor.bottom - dino.heightPx);
-        // Come back after 8 seconds.
         setTimeout(() => {
           dino.goTo(cssW / 2, cssH * 0.6);
           pokeCount = 0;
@@ -888,7 +462,6 @@ function startApp(stage: HTMLElement, worldCanvas: HTMLCanvasElement, dinoCanvas
       } else {
         dino.react(pokeCount >= 3 ? "angry" : "sad", 800);
         bubble.show(line);
-        if (isVoiceEnabled) void voice.say(line);
       }
       return;
     }
@@ -899,19 +472,13 @@ function startApp(stage: HTMLElement, worldCanvas: HTMLCanvasElement, dinoCanvas
 
   // ── SSE real-time events ──────────────────────────────────────────
 
-  let es: EventSource | null = null;
   let isFirstLoad = true;
 
   function connectSse(): void {
-    if (es) {
-      es.close();
-    }
-
-    es = new EventSource(`${ARCHIVE_API_URL}/events?sound=${isVoiceEnabled ? "1" : "0"}`);
+    const es = new EventSource(`${ARCHIVE_API_URL}/events`);
 
     es.addEventListener("open", () => {
       console.log("[stream] SSE event source connected");
-      if (systemMsg) systemMsg.remove();
     });
 
     es.addEventListener("message", (ev) => {
@@ -921,35 +488,29 @@ function startApp(stage: HTMLElement, worldCanvas: HTMLCanvasElement, dinoCanvas
 
         switch (data.type) {
           case "snapshot": {
-            const flatItems: ContentItem[] = [];
-            for (const list of Object.values(data.bins || {})) {
-              if (Array.isArray(list)) {
-                flatItems.push(...(list as ContentItem[]));
-              }
+            const list = Array.isArray(data.stories) ? (data.stories as Story[]) : [];
+            // Newest stories matter most — render those first so pruning
+            // (if the archive outgrows the screen) drops the oldest.
+            const sorted = [...list].sort(
+              (a, b) => (b.deliveredAt ?? 0) - (a.deliveredAt ?? 0)
+            );
+
+            if (sorted.length === 0) {
+              systemMsg.textContent = "// nothing important yet. the world is quiet today.";
+            } else {
+              systemMsg.remove();
             }
-            // Sort oldest first.
-            flatItems.sort((a, b) => {
-              const timeA = a.publishedAt ?? a.deliveredAt ?? 0;
-              const timeB = b.publishedAt ?? b.deliveredAt ?? 0;
-              return timeA - timeB;
-            });
-            
-            // Render first 3 snapshot items instantly so the page is not empty.
-            const initialCount = Math.min(3, flatItems.length);
-            const initial = flatItems.slice(0, initialCount);
-            for (const item of initial) {
-              renderItem(item, false);
+
+            // First few appear right away so the page isn't blank; the rest
+            // typewrite in one at a time.
+            const initial = sorted.slice(0, 5);
+            for (const story of initial) {
+              renderStory(story, false);
             }
-            
-            // Queue the rest to typewriter one by one.
-            const remaining = flatItems.slice(initialCount);
-            for (const item of remaining) {
-              if (!renderedItemIds.has(item.id)) {
-                typewriterQueue.push(item);
-              }
+            for (const story of sorted.slice(5)) {
+              if (!renderedStoryIds.has(story.id)) storyQueue.push(story);
             }
-            
-            // Position Zaur in the center, but only on first load so we don't reset him when toggling sound.
+
             if (isFirstLoad) {
               setTimeout(() => {
                 dino.goTo(cssW / 2, cssH * 0.6);
@@ -960,9 +521,10 @@ function startApp(stage: HTMLElement, worldCanvas: HTMLCanvasElement, dinoCanvas
           }
 
           case "add": {
-            const item = data.item as ContentItem;
-            if (renderedItemIds.has(item.id)) return;
-            typewriterQueue.push(item);
+            const story = data.story as Story;
+            if (renderedStoryIds.has(story.id)) return;
+            systemMsg.remove();
+            storyQueue.push(story);
             break;
           }
 
@@ -970,18 +532,10 @@ function startApp(stage: HTMLElement, worldCanvas: HTMLCanvasElement, dinoCanvas
             const text = data.text as string;
             bubble.show(text);
             if (isVoiceEnabled) void voice.say(text);
-            dino.react("happy", 1000);
             break;
           }
 
-          case "dino_sfx": {
-            const path = data.path as string;
-            if (isVoiceEnabled) void voice.playSfx(path);
-            break;
-          }
-
-          case "expire":
-          case "items_expired": {
+          case "expire": {
             const ids = data.ids as string[];
             if (!ids) return;
             terrain.fadeOut(ids);
@@ -1019,56 +573,46 @@ function startApp(stage: HTMLElement, worldCanvas: HTMLCanvasElement, dinoCanvas
   });
   resizeObserver.observe(stage);
 
-  // ── Idle wandering between text blocks ────────────────────────────
+  // ── Idle wandering between stories ────────────────────────────────
 
   setInterval(() => {
     if (!dino.isAvailable || dino.state === "walk") return;
-    if (Math.random() > 0.45) return;
+    if (Math.random() > 0.4) return;
 
     const block = terrain.randomBlock(true);
     if (!block) {
-      // No blocks yet — wander randomly.
       dino.goTo(Math.random() * cssW, Math.random() * cssH * 0.7);
       return;
     }
 
-    // Walk to a random position on/near this text block.
     const targetX = block.x + Math.random() * block.w;
-    const targetY = block.y - dino.heightPx; // Stand on top of the block.
+    const targetY = block.y - dino.heightPx;
     dino.goTo(targetX, targetY);
 
-    // Idle commentary.
-    if (Math.random() < 0.25) {
+    // Occasional quiet commentary — rare on purpose.
+    if (Math.random() < 0.12) {
       const hour = new Date().getHours();
-      // Try memory comment first, fallback to time-of-day.
       const line = memory.getMemoryIdleComment() ?? getIdleComment(hour);
       setTimeout(() => {
         bubble.show(line);
-        if (isVoiceEnabled && Math.random() < 0.2) {
-          void voice.say(line);
-        }
       }, 2500);
     }
-  }, 14000);
+  }, 18_000);
 
   // Track user interactions to detect "ultra-idle" (30+ min).
   let lastUserInteraction = performance.now();
   let ultraIdleFired = false;
-  
-  const resetInteraction = () => {
+
+  stage.addEventListener("pointerdown", () => {
     lastUserInteraction = performance.now();
     ultraIdleFired = false;
-  };
-  stage.addEventListener("pointerdown", resetInteraction);
-  chatForm.addEventListener("submit", resetInteraction);
+  });
 
   const ULTRA_IDLE_LINES = [
     "i've been standing here so long i started building a tiny house from semicolons. it fell down. twice.",
     "hello? is anyone there? or did the page fall asleep? pages don't sleep. ...do they?",
-    "i've been counting the pixels. there are a lot of them. i lost count at seven.",
     "i wonder what the other tabs are doing. probably something more interesting. *sigh*",
     "if a dinosaur stands on a webpage and nobody scrolls, does it even render?",
-    "i've had three existential crises in the last minute. a new personal record.",
     "the letter Q and i have become friends. we're both a bit... unnecessary. but we're here.",
   ];
 
@@ -1077,31 +621,29 @@ function startApp(stage: HTMLElement, worldCanvas: HTMLCanvasElement, dinoCanvas
     const elapsed = performance.now() - lastUserInteraction;
     if (elapsed < 30 * 60_000) return;
     if (!dino.isAvailable) return;
-    
+
     ultraIdleFired = true;
     const line = ULTRA_IDLE_LINES[Math.floor(Math.random() * ULTRA_IDLE_LINES.length)];
     dino.react("sad", 3000);
     bubble.show(line);
-    if (isVoiceEnabled) void voice.say(line);
   }, 60_000);
 
-  // ── ISS Pass-Over Tracker ─────────────────────────────────────────
-  
+  // ── ISS Pass-Over easter egg ──────────────────────────────────────
+
   let issSpotted = false;
   const pollISS = async () => {
     if (issSpotted || !dino.isAvailable) return;
     try {
       const resp = await fetch("https://api.wheretheiss.at/v1/satellites/25544");
       if (!resp.ok) return;
-      await resp.json(); // Just verify it's valid JSON
-      
-      // The ISS moves fast. We'll just randomly decide it's "visible" occasionally
-      // to keep the easter egg alive, but tie it to the real API call so it's
-      // technically happening when the ISS is doing *something*.
+      await resp.json();
+
+      // The ISS moves fast — a small random chance keeps the easter egg
+      // alive, tied to a real API call so it happens while the ISS is
+      // actually doing *something*.
       if (Math.random() < 0.15) {
         issSpotted = true;
-        
-        // Render the ISS.
+
         const issDot = document.createElement("div");
         issDot.className = "iss-dot";
         stage.appendChild(issDot);
@@ -1116,38 +658,18 @@ function startApp(stage: HTMLElement, worldCanvas: HTMLCanvasElement, dinoCanvas
           bubble.show(lines[Math.floor(Math.random() * lines.length)]);
         }, 1500);
 
-        // Remove after it flies across.
         setTimeout(() => {
           issDot.remove();
-          issSpotted = false; // allow it to be spotted again much later
+          issSpotted = false;
         }, 30_000);
       }
     } catch {
       // ignore
     }
   };
-  
-  // Check every 2 minutes.
+
   setInterval(pollISS, 120_000);
-  setTimeout(pollISS, 30_000); // Initial check after 30s.
-
-  // ── Persist important articles periodically ───────────────────────
-
-  setInterval(() => {
-    terrain.persist();
-  }, 60_000);
-
-  // Also persist on unload.
-  window.addEventListener("beforeunload", () => {
-    terrain.persist();
-  });
-
-  // ── Restore persisted blocks ──────────────────────────────────────
-
-  const restored = terrain.restore();
-  for (const item of restored) {
-    renderItem(item, false);
-  }
+  setTimeout(pollISS, 30_000);
 
   // ── Main animation frame loop ─────────────────────────────────────
 
