@@ -9,7 +9,7 @@
 
   Embed anywhere:
     <iframe src="https://dino.zaur.app/radio-widget.html"
-            style="width:340px;height:96px;border:0" title="Radio Bartek"></iframe>
+            style="width:340px;height:118px;border:0" title="Radio Bartek"></iframe>
 
   Reuse for another AzuraCast station via query params:
     ?base=https://your.host&station=your_shortcode&accent=%23ff2e88
@@ -124,6 +124,46 @@
   }
   .rb-bar.hidden { visibility: hidden; }
 
+  .rb-vol {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-top: 6px;
+  }
+  .rb-vol-ico {
+    width: 12px;
+    height: 12px;
+    flex: 0 0 auto;
+    fill: var(--ink-soft);
+    opacity: 0.8;
+  }
+  .rb-vol input[type="range"] {
+    -webkit-appearance: none;
+    appearance: none;
+    flex: 1 1 auto;
+    height: 3px;
+    border-radius: 2px;
+    background: rgba(255, 255, 255, 0.12);
+    outline: none;
+    cursor: pointer;
+  }
+  .rb-vol input[type="range"]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background: var(--ink);
+    border: 0;
+  }
+  .rb-vol input[type="range"]::-moz-range-thumb {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background: var(--ink);
+    border: 0;
+  }
+
   .rb-play {
     flex: 0 0 auto;
     width: 42px; height: 42px;
@@ -159,6 +199,10 @@
       <div class="rb-title" id="title">—</div>
       <div class="rb-artist" id="artist"></div>
       <div class="rb-bar" id="bar"><span class="rb-fill" id="fill"></span></div>
+      <div class="rb-vol">
+        <svg class="rb-vol-ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3a4.5 4.5 0 0 0-2.5-4v8a4.5 4.5 0 0 0 2.5-4z"/></svg>
+        <input type="range" id="volume" min="0" max="100" step="1" value="80" aria-label="Volume" />
+      </div>
     </div>
     <button class="rb-play" id="play" aria-label="Play / pause" title="Play / pause">
       <svg class="ico-play" viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5v14l11-7z"/></svg>
@@ -187,7 +231,20 @@
       fill: document.getElementById("fill"),
       play: document.getElementById("play"),
       audio: document.getElementById("audio"),
+      volume: document.getElementById("volume"),
     };
+
+    // ── Volume ───────────────────────────────────────────────────────
+    var VOL_KEY = "rb-volume";
+    var storedVol = null;
+    try { storedVol = localStorage.getItem(VOL_KEY); } catch (e) { /* private mode */ }
+    var vol = storedVol == null ? 80 : Math.max(0, Math.min(100, Number(storedVol) || 0));
+    els.volume.value = vol;
+    els.audio.volume = vol / 100;
+    els.volume.addEventListener("input", function () {
+      els.audio.volume = els.volume.value / 100;
+      try { localStorage.setItem(VOL_KEY, els.volume.value); } catch (e) { /* ignore */ }
+    });
 
     var streamUrl = BASE + "/listen/" + STATION + "/radio.mp3";
     var elapsed = 0, duration = 0, lastSync = 0;

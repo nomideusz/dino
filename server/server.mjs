@@ -9,10 +9,10 @@
 
 import { mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import { createServer } from "node:http";
-import { request as httpsRequest } from "node:https";
 import { dirname } from "node:path";
 
 import { Editor } from "./editor.mjs";
+import { extractArticle } from "./reader.mjs";
 import { createMusings } from "./sources/musings.mjs";
 import { Science } from "./sources/science.mjs";
 import { Tech } from "./sources/tech.mjs";
@@ -212,79 +212,44 @@ function sendJson(req, res, status, body) {
   res.end(JSON.stringify(body));
 }
 
-async function readJson(req) {
-  const chunks = [];
-  let total = 0;
-  for await (const chunk of req) {
-    total += chunk.length;
-    if (total > 8_192) throw new Error("payload too large");
-    chunks.push(chunk);
-  }
-  if (total === 0) return null;
-  return JSON.parse(Buffer.concat(chunks).toString("utf-8"));
-}
-
-// ── TTS (ElevenLabs) ─────────────────────────────────────────────────────
+// ── Article reader cache ─────────────────────────────────────────────────
 //
-// Optional voice for dino's thoughts. When ELEVENLABS_API_KEY is set, the
-// /tts endpoint proxies a stream of MP3 audio back to the client. The key
-// never leaves the server.
-const ELEVENLABS_API_KEY = process.env.ELEVENLABS_API_KEY ?? "";
-const ELEVENLABS_VOICE_ID = process.env.ELEVENLABS_VOICE_ID ?? "C21lwcJUiYtgqXZrnOpk";
-const ELEVENLABS_MODEL_ID = process.env.ELEVENLABS_MODEL_ID ?? "eleven_flash_v2_5";
-const TTS_MAX_TEXT_LENGTH = 2000;
+// Extracted article bodies, keyed by story id. Entries live for a few hours
+// (articles don't change), and failures are cached briefly so a page that
+// blocks us isn't re-fetched on every modal open.
+const READER_CACHE_TTL_MS = 6 * 60 * 60_000;
+const READER_FAILURE_TTL_MS = 15 * 60_000;
+const READER_CACHE_MAX = 300;
 
-function proxyTts(text, req, res) {
-  const path =
-    `/v1/text-to-speech/${encodeURIComponent(ELEVENLABS_VOICE_ID)}` +
-    `?output_format=mp3_44100_64`;
-  const upstream = httpsRequest(
-    {
-      protocol: "https:",
-      hostname: "api.elevenlabs.io",
-      port: 443,
-      path,
-      method: "POST",
-      headers: {
-        "xi-api-key": ELEVENLABS_API_KEY,
-        "content-type": "application/json",
-        accept: "audio/mpeg",
-      },
-    },
-    (upRes) => {
-      setCors(req, res);
-      if (upRes.statusCode !== 200) {
-        const chunks = [];
-        upRes.on("data", (c) => chunks.push(c));
-        upRes.on("end", () => {
-          const body = Buffer.concat(chunks).toString("utf-8").slice(0, 200);
-          console.warn("[tts] upstream", upRes.statusCode, body);
-          if (!res.headersSent) {
-            sendJson(req, res, 502, {
-              error: "tts upstream failed",
-              status: upRes.statusCode,
-            });
-          } else {
-            res.destroy();
-          }
+/** @type {Map<string, { paragraphs: string[] | null, expiresAt: number }>} */
+const readerCache = new Map();
+/** @type {Map<string, Promise<string[] | null>>} */
+const readerInFlight = new Map();
+
+async function readArticle(story) {
+  const cached = readerCache.get(story.id);
+  if (cached && cached.expiresAt > Date.now()) return cached.paragraphs;
+
+  let pending = readerInFlight.get(story.id);
+  if (!pending) {
+    pending = extractArticle(story.href)
+      .catch(() => null)
+      .then((paragraphs) => {
+        if (readerCache.size >= READER_CACHE_MAX) {
+          const oldest = readerCache.keys().next().value;
+          if (oldest) readerCache.delete(oldest);
+        }
+        readerCache.set(story.id, {
+          paragraphs,
+          expiresAt:
+            Date.now() + (paragraphs ? READER_CACHE_TTL_MS : READER_FAILURE_TTL_MS),
         });
-        return;
-      }
-      res.writeHead(200, {
-        "content-type": "audio/mpeg",
-        "cache-control": "no-store",
+        readerInFlight.delete(story.id);
+        return paragraphs;
       });
-      upRes.pipe(res);
-    }
-  );
-  upstream.on("error", (err) => {
-    console.warn("[tts] proxy error:", err.message);
-    if (!res.headersSent) sendJson(req, res, 502, { error: "tts proxy failed" });
-    else res.destroy();
-  });
-  req.on("close", () => upstream.destroy());
-  upstream.write(JSON.stringify({ text, model_id: ELEVENLABS_MODEL_ID }));
-  upstream.end();
+    readerInFlight.set(story.id, pending);
+  }
+  return pending;
 }
 
 // ── Server ───────────────────────────────────────────────────────────────
@@ -339,24 +304,26 @@ const server = createServer(async (req, res) => {
       return;
     }
 
-    if (req.method === "POST" && url.pathname === "/tts") {
-      if (!ELEVENLABS_API_KEY) {
-        sendJson(req, res, 503, { error: "tts not configured" });
+    if (req.method === "GET" && url.pathname.startsWith("/article/")) {
+      // Full text for a *published* story only — this is a reader for our
+      // own archive, not an open extraction proxy.
+      const id = decodeURIComponent(url.pathname.slice("/article/".length));
+      const story = stories.find((s) => s.id === id);
+      if (!story || typeof story.href !== "string") {
+        sendJson(req, res, 404, { error: "story not found" });
         return;
       }
-      let body;
-      try {
-        body = await readJson(req);
-      } catch {
-        sendJson(req, res, 400, { error: "invalid json" });
+      const paragraphs = await readArticle(story);
+      if (!paragraphs) {
+        sendJson(req, res, 200, { ok: false });
         return;
       }
-      const raw = typeof body?.text === "string" ? body.text.trim() : "";
-      if (!raw || raw.length > TTS_MAX_TEXT_LENGTH) {
-        sendJson(req, res, 400, { error: "invalid text" });
-        return;
-      }
-      proxyTts(raw, req, res);
+      setCors(req, res);
+      res.writeHead(200, {
+        "content-type": "application/json; charset=utf-8",
+        "cache-control": "public, max-age=3600",
+      });
+      res.end(JSON.stringify({ ok: true, paragraphs }));
       return;
     }
 

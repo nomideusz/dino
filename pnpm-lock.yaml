@@ -7,10 +7,6 @@ settings:
 importers:
 
   .:
-    dependencies:
-      html-to-image:
-        specifier: ^1.11.13
-        version: 1.11.13
     devDependencies:
       '@types/node':
         specifier: ^25.6.0
@@ -316,9 +312,6 @@ packages:
     engines: {node: ^8.16.0 || ^10.6.0 || >=11.0.0}
     os: [darwin]
 
-  html-to-image@1.11.13:
-    resolution: {integrity: sha512-cuOPoI7WApyhBElTTb9oqsawRvZ0rHhaHwghRLlTuffoD1B2aDemlCruLeZrUIIdvG7gs9xeELEPm6PhuASqrg==}
-
   nanoid@3.3.11:
     resolution: {integrity: sha512-N8SpfPUnUp1bK+PMYW8qSWdl9U+wwNWI4QKxOYDy9JAro3WMX7p2OeVRF9v+347pnakNevPmiHhNmZ2HbFA76w==}
     engines: {node: ^10 || ^12 || ^13.7 || ^14 || >=15.0.1}
@@ -559,8 +552,6 @@ snapshots:
 
   fsevents@2.3.3:
     optional: true
-
-  html-to-image@1.11.13: {}
 
   nanoid@3.3.11: {}
 

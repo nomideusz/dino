@@ -177,7 +177,8 @@ const BLINK = [
   "....................",
 ];
 
-// sleeping — head down on the left, tail curled right; readable at small scale
+// sleeping — lying down: head resting low on the right (eye closed), back
+// rising into a gentle mound, tail stretched out to the left on the ground.
 const SLEEP = [
   "....................",
   "....................",
@@ -185,17 +186,17 @@ const SLEEP = [
   "....................",
   "....................",
   "....................",
-  "................XXXX",
-  "..............XXXXXX",
-  "............XXXXXXXX",
-  "..........XXXXXXXXXX",
-  "........XXXXXXXXXXXX",
-  "......XXXXXXXXXXXXXX",
-  "....XXXXXXXXXXXXXXXX",
-  "..XXXXXXXXXXXXXXXXXX",
-  "....XXXXXXXX........",
-  "......XXXX..........",
-  ".......XXX..........",
+  "....................",
+  "....................",
+  "....................",
+  "....................",
+  "....................",
+  ".............XXXXX..",
+  "........XXXXXXXXXXX.",
+  "......XXXXXXXXXXXXX.",
+  ".XX..XXXXXXXXXXXX...",
+  "..XXXXXXXXXXXXXXX...",
+  "...XXXXXXXXXXXXX....",
   "....................",
 ];
 

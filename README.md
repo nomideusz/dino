@@ -69,11 +69,15 @@ npm start     # http://localhost:8080
    visitor over SSE — a `snapshot` on connect, then `add` / `expire` deltas.
    Everyone sees the same world.
 
-On the client, stories render as scattered text blocks (title, summary,
-source link) that double as physical terrain — Zaur has gravity and stands on
-their top edges. The category toggles in the bottom bar filter what's shown
-(persisted per-visitor in `localStorage`); Zaur quietly walks over to
-whatever is new.
+On the client, stories render as text blocks in even masonry columns (title,
+summary, source) that double as physical terrain — Zaur has gravity and
+stands on their top edges. Clicking a block opens a reading modal: the server
+fetches the original page and extracts the readable paragraphs
+(`server/reader.mjs`, exposed as `GET /article/<id>` for published stories
+only), with the original link as fallback. The **archive** button in the
+bottom bar lists everything from the last two days. Category toggles filter
+what's shown (persisted per-visitor in `localStorage`); Zaur quietly walks
+over to whatever is new.
 
 ## Configuration
 
@@ -96,12 +100,6 @@ Archive runtime variables:
   thoughts. Without it the heuristic editor and a hand-written thought pool
   take over.
 - `NASA_API_KEY`: optional; APOD works on `DEMO_KEY` but a real key is polite.
-- `ELEVENLABS_API_KEY`: optional; enables the `/tts` proxy so the client can
-  speak dino's thoughts aloud. Unset disables the endpoint (returns 503).
-  `ELEVENLABS_VOICE_ID` and `ELEVENLABS_MODEL_ID` override the voice/model.
-  The frontend gates voice playback behind a small speaker toggle on the
-  radio panel; opt-in is persisted per visitor in `localStorage` and the
-  audio is streamed Blob-only (never written to disk on either side).
 
 Navidrome service runtime variables (the bundled image):
 
@@ -144,14 +142,16 @@ src/
 ├── dinoBubble.ts      # ephemeral speech bubble for dino_thought events
 ├── sprite.ts          # canvas rendering for the dino frames
 ├── spriteFrames.ts    # programmatic pixel-art frames (vendored, no image files)
-├── textTerrain.ts     # story blocks scattered across the viewport (= platforms)
+├── textTerrain.ts     # story blocks in even masonry columns (= platforms)
+├── storyReader.ts     # full-article modal + two-day archive panel
 ├── weather.ts         # per-visitor weather + ambient sky state
 └── services/
     └── content.ts     # the shared Story model + categories
 
 server/                # standalone npm package (@anthropic-ai/sdk)
-├── server.mjs         # story archive, SSE stream, TTS proxy
+├── server.mjs         # story archive, SSE stream, /article reader endpoint
 ├── editor.mjs         # candidate pool, editorial pass (Claude or heuristic)
+├── reader.mjs         # readable-paragraph extraction for the story modal
 └── sources/           # tech (HN), world (BBC+USGS), ukraine, science, rss, musings
 
 navidrome/

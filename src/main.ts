@@ -9,7 +9,7 @@
 import { Dino } from "./dino.js";
 import { DinoAmbient } from "./dinoBehavior.js";
 import { DinoBubble } from "./dinoBubble.js";
-import { DinoVoice } from "./dinoVoice.js";
+import { StoryReader } from "./storyReader.js";
 import { WeatherClient } from "./weather.js";
 import { World } from "./world.js";
 import { typewriter } from "./typewriter.js";
@@ -137,8 +137,7 @@ function startApp(stage: HTMLElement, worldCanvas: HTMLCanvasElement, dinoCanvas
   const terrainEl = document.getElementById("terrain") as HTMLElement;
   const systemMsg = document.getElementById("system-msg") as HTMLElement;
   const channelsEl = document.getElementById("channels") as HTMLElement;
-  const cameraBtn = document.getElementById("camera-btn") as HTMLButtonElement;
-  const voiceBtn = document.getElementById("voice-btn") as HTMLButtonElement;
+  const archiveBtn = document.getElementById("archive-btn") as HTMLButtonElement;
 
   let dpr = Math.max(1, window.devicePixelRatio || 1);
   let cssW = stage.clientWidth;
@@ -175,7 +174,7 @@ function startApp(stage: HTMLElement, worldCanvas: HTMLCanvasElement, dinoCanvas
   const dino = new Dino({ scale: dinoScale, worldWidth: cssW, worldHeight: cssH });
 
   const bubble = new DinoBubble(stage, dino);
-  const voice = new DinoVoice(ARCHIVE_API_URL);
+  const reader = new StoryReader(ARCHIVE_API_URL);
 
   const ambient = new DinoAmbient(dino, () => weather.conditions());
   ambient.onWeatherComment = (line) => {
@@ -187,7 +186,7 @@ function startApp(stage: HTMLElement, worldCanvas: HTMLCanvasElement, dinoCanvas
     viewW: cssW,
     viewH: cssH,
     marginX: 24,
-    marginTop: 150,
+    marginTop: 96,
     marginBottom: 80,
   });
 
@@ -203,8 +202,18 @@ function startApp(stage: HTMLElement, worldCanvas: HTMLCanvasElement, dinoCanvas
   // Track rendered story IDs to prevent duplicates.
   const renderedStoryIds = new Set<string>();
 
+  // Everything currently in the shared 48h archive, for the archive panel.
+  const allStories = new Map<string, Story>();
+
   // Zaur's cross-session memory.
   const memory = new ZaurMemorySystem();
+
+  // ── Reading: click a story → full article modal; archive panel ─────
+
+  terrain.onStoryClick = (story) => reader.open(story);
+  archiveBtn.addEventListener("click", () => {
+    reader.openArchive([...allStories.values()]);
+  });
 
   // ── Category channels ─────────────────────────────────────────────
 
@@ -238,18 +247,6 @@ function startApp(stage: HTMLElement, worldCanvas: HTMLCanvasElement, dinoCanvas
     channelsEl.appendChild(btn);
   }
   applyChannels();
-
-  // ── Voice toggle ──────────────────────────────────────────────────
-
-  let isVoiceEnabled = voice.isEnabled();
-  voiceBtn.textContent = isVoiceEnabled ? "🔊" : "🔇";
-  voiceBtn.classList.toggle("active", isVoiceEnabled);
-
-  voiceBtn.addEventListener("click", () => {
-    isVoiceEnabled = voice.toggle();
-    voiceBtn.textContent = isVoiceEnabled ? "🔊" : "🔇";
-    voiceBtn.classList.toggle("active", isVoiceEnabled);
-  });
 
   // ── Return greeting ───────────────────────────────────────────────
 
@@ -300,9 +297,13 @@ function startApp(stage: HTMLElement, worldCanvas: HTMLCanvasElement, dinoCanvas
     if (isNew) {
       const textEl = block.el.querySelector(".tb-text") as HTMLElement;
       if (textEl) {
+        // Re-measure the columns as the summary grows line by line.
+        const reflow = setInterval(() => terrain.noteContentChanged(), 700);
         void typewriter(textEl, story.summary, { cps: 42, playClick: false }).then(() => {
+          clearInterval(reflow);
           textEl.classList.remove("typing-cursor");
           block.typing = false;
+          terrain.noteContentChanged();
           visitStoryQuietly(block);
         });
       } else {
@@ -350,78 +351,6 @@ function startApp(stage: HTMLElement, worldCanvas: HTMLCanvasElement, dinoCanvas
       }
     } else {
       konamiIdx = 0;
-    }
-  });
-
-  // Screenshot / Share Mode
-  let isCapturing = false;
-
-  const captureScreenshot = async () => {
-    if (isCapturing) return;
-    isCapturing = true;
-
-    dino.react("surprised", 1500);
-    setTimeout(() => {
-      bubble.show("did you just... screenshot me? i wasn't ready! my pixels were relaxed!");
-    }, 800);
-
-    document.body.classList.add("capturing");
-
-    const watermark = document.createElement("div");
-    watermark.className = "screenshot-watermark";
-    watermark.textContent = "dino.zaur.app";
-    stage.appendChild(watermark);
-
-    try {
-      const { toBlob } = await import("html-to-image");
-
-      const blob = await toBlob(stage, {
-        quality: 0.95,
-        backgroundColor: "#14141a",
-        style: {
-          transform: "scale(1)",
-          transformOrigin: "top left",
-        },
-        filter: (node) => {
-          if (node instanceof HTMLElement) {
-            if (node.classList?.contains("bottom-bar")) return false;
-            if (node.classList?.contains("radio-widget")) return false;
-          }
-          return true;
-        }
-      });
-
-      if (blob) {
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement("a");
-        a.href = url;
-        a.download = `zaur-world-${new Date().toISOString().replace(/[:.]/g, "-")}.png`;
-        a.click();
-        URL.revokeObjectURL(url);
-
-        try {
-          if (navigator.clipboard && window.ClipboardItem) {
-            await navigator.clipboard.write([new ClipboardItem({ "image/png": blob })]);
-          }
-        } catch {
-          // Ignore clipboard errors.
-        }
-      }
-    } catch (err) {
-      console.error("Screenshot failed:", err);
-      bubble.show("the camera broke. it's probably my fault.");
-    } finally {
-      document.body.classList.remove("capturing");
-      watermark.remove();
-      isCapturing = false;
-    }
-  };
-
-  cameraBtn.addEventListener("click", captureScreenshot);
-
-  document.addEventListener("keydown", (ev) => {
-    if (ev.key === "s" && !(ev.target instanceof HTMLInputElement)) {
-      void captureScreenshot();
     }
   });
 
@@ -489,6 +418,7 @@ function startApp(stage: HTMLElement, worldCanvas: HTMLCanvasElement, dinoCanvas
         switch (data.type) {
           case "snapshot": {
             const list = Array.isArray(data.stories) ? (data.stories as Story[]) : [];
+            for (const story of list) allStories.set(story.id, story);
             // Newest stories matter most — render those first so pruning
             // (if the archive outgrows the screen) drops the oldest.
             const sorted = [...list].sort(
@@ -522,6 +452,7 @@ function startApp(stage: HTMLElement, worldCanvas: HTMLCanvasElement, dinoCanvas
 
           case "add": {
             const story = data.story as Story;
+            allStories.set(story.id, story);
             if (renderedStoryIds.has(story.id)) return;
             systemMsg.remove();
             storyQueue.push(story);
@@ -531,13 +462,13 @@ function startApp(stage: HTMLElement, worldCanvas: HTMLCanvasElement, dinoCanvas
           case "dino_thought": {
             const text = data.text as string;
             bubble.show(text);
-            if (isVoiceEnabled) void voice.say(text);
             break;
           }
 
           case "expire": {
             const ids = data.ids as string[];
             if (!ids) return;
+            for (const id of ids) allStories.delete(id);
             terrain.fadeOut(ids);
             break;
           }
@@ -567,7 +498,6 @@ function startApp(stage: HTMLElement, worldCanvas: HTMLCanvasElement, dinoCanvas
         world.resize({ width: cssW, height: cssH });
         dino.resize(cssW, cssH);
         terrain.updateConstraints(cssW, cssH);
-        terrain.repositionAll();
       }
     });
   });

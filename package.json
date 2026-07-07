@@ -22,8 +22,5 @@
     "@types/node": "^25.6.0",
     "typescript": "^5.6.3",
     "vite": "^5.4.10"
-  },
-  "dependencies": {
-    "html-to-image": "^1.11.13"
   }
 }
