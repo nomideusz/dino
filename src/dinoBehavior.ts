@@ -13,8 +13,6 @@ import type { Dino, Mood } from "./dino.js";
 import type { WeatherConditions } from "./weather.js";
 
 interface AmbientOptions {
-  /** ms with no card spawn before the dino reads as "bored" / sleepy. */
-  idleThresholdMs?: number;
   /** Minimum ms between two ambient triggers, so the dino isn't twitching. */
   cooldownMs?: number;
   /** Per-tick chance of firing once cooldown has elapsed. Keeps things calm. */
@@ -22,7 +20,6 @@ interface AmbientOptions {
 }
 
 const DEFAULTS: Required<AmbientOptions> = {
-  idleThresholdMs: 3 * 60_000,
   cooldownMs: 9_000,
   perTickChance: 0.18,
 };
@@ -66,7 +63,6 @@ const WEATHER_LINES: Record<string, string[]> = {
 };
 
 export class DinoAmbient {
-  private lastSpawnAt = performance.now();
   private lastTriggerAt = 0;
   private lastWeatherComment = 0;
   private readonly opts: Required<AmbientOptions>;
@@ -82,11 +78,6 @@ export class DinoAmbient {
     this.opts = { ...DEFAULTS, ...opts };
   }
 
-  /** Reset the idle timer. Wire to MessageWorld.onSpawn. */
-  noteSpawn(): void {
-    this.lastSpawnAt = performance.now();
-  }
-
   /**
    * Per-frame poll. Cheap — most calls bail before doing anything. Picks at
    * most one ambient mood to play, in a rough priority order so the loudest
@@ -99,9 +90,8 @@ export class DinoAmbient {
 
     const wx = this.weatherFn();
     const hour = new Date().getHours();
-    const idleMs = now - this.lastSpawnAt;
 
-    const pick = chooseAmbientMood({ wx, hour, idleMs, idleThresholdMs: this.opts.idleThresholdMs });
+    const pick = chooseAmbientMood({ wx, hour });
     if (!pick) return;
 
     this.dino.react(pick.mood, pick.duration);
@@ -182,8 +172,6 @@ function pickStareLine(wx: WeatherConditions | null, hour: number): string | nul
 interface ChoiceContext {
   wx: WeatherConditions | null;
   hour: number;
-  idleMs: number;
-  idleThresholdMs: number;
 }
 
 interface MoodChoice {
@@ -195,12 +183,13 @@ interface MoodChoice {
 
 /**
  * Priority-ordered ambient mood selection. First match wins. Weather cues are
- * loudest, then long-idle "lying down", then time-of-day baseline, then the
- * gentle clear-day happiness as a fallback so a sunny afternoon still gets
- * the occasional smile.
+ * loudest, then the time-of-day baseline, then the gentle clear-day happiness
+ * as a fallback so a sunny afternoon still gets the occasional smile.
+ * Sleeping is deliberately NOT here — naps are the mind's job, and they
+ * happen at his home spot, never mid-screen.
  */
 function chooseAmbientMood(ctx: ChoiceContext): MoodChoice | null {
-  const { wx, hour, idleMs, idleThresholdMs } = ctx;
+  const { wx, hour } = ctx;
 
   // Storm: brief alarm. The lightning visuals already do the loud part —
   // the dino just looks worried.
@@ -220,17 +209,12 @@ function chooseAmbientMood(ctx: ChoiceContext): MoodChoice | null {
   // Fog: confused.
   if (wx?.fog) return { mood: "surprised", duration: 1600, weatherKey: "fog" };
 
-  // Long idle: lies down sleepy. Heaviest behavioural tell that the page
-  // has been quiet — invites the user to do something.
-  if (idleMs > idleThresholdMs) return { mood: "sleepy", duration: 4000 };
-
-  // Night hours: contemplative.
+  // Clear night: stare at the sky.
   if (hour >= 22 || hour < 5) {
-    // Clear night: stare at the sky.
     if (wx && !wx.isDay && wx.cloudiness === 0 && wx.precipitation === "none") {
       return { mood: "curious", duration: 3000, weatherKey: "clear_night" };
     }
-    return { mood: "sleepy", duration: 2800 };
+    return null;
   }
 
   // Early morning: bouncy.

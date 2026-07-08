@@ -160,18 +160,6 @@ export class TextTerrain {
     return { y: bestY, block: bestBlock };
   }
 
-  /** Pick a random visible block, optionally weighted toward recent ones. */
-  randomBlock(preferRecent = false): TerrainBlock | null {
-    const visible = this.blocks.filter((b) => !b.hidden);
-    if (visible.length === 0) return null;
-    if (!preferRecent || Math.random() < 0.3) {
-      return visible[Math.floor(Math.random() * visible.length)];
-    }
-    // Bias toward the last third of blocks (most recent).
-    const start = Math.max(0, visible.length - Math.ceil(visible.length / 3));
-    return visible[start + Math.floor(Math.random() * (visible.length - start))];
-  }
-
   /** Clear all blocks from DOM and internal state. */
   clear(): void {
     for (const b of this.blocks) b.el.remove();

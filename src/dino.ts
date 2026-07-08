@@ -1,12 +1,12 @@
-// The dinosaur entity. He owns the entire viewport: he picks random points
-// to wander to, walks toward them, then idles, looks around, blinks, or
-// naps. An external coordinator can also assign him a *goal* — walk over to
-// a specific point (a text block), react to it, and then go back to
-// wandering.
-//
-// In this rebuild, Zaur has simple gravity — he falls until he lands on a
+// The dinosaur body. Zaur has simple gravity — he falls until he lands on a
 // text block top-edge or the viewport floor. Text blocks act as platforms
 // he can stand on, making the "letters are his world" concept literal.
+//
+// This class owns *how* he moves: walking (horizontal only, gravity handles
+// the rest), hopping onto surfaces with a real jump arc, napping, staring.
+// It does not decide *where* to go — that's `dinoMind.ts`, which strings
+// these verbs into routines. Left alone, the body only fidgets: idles,
+// blinks, looks around.
 
 import {
   buildFrames,
@@ -33,11 +33,7 @@ export type Activity =
   | "blink"
   | "sleep"
   | "react"
-  | "fall"     // gravity — falling toward the ground or a platform
-  | "stare"    // prolonged sky/moon gazing — look_up frame, long duration
-  | "seek"      // walking toward a designated message to pick it up
-  | "carry"     // walking with a message attached, headed for a bin
-  | "deliver";  // paused at a bin, dropping the message in
+  | "stare";   // prolonged sky/moon gazing — look_up frame, long duration
 
 export interface DinoOptions {
   /** Pixel scale (each sprite pixel is N CSS pixels). */
@@ -56,12 +52,6 @@ export interface BubbleAnchor {
   x: number;
   top: number;
   bottom: number;
-}
-
-/** Where a carried object should sit, in world CSS pixels. */
-export interface CarryAnchor {
-  x: number;
-  y: number;
 }
 
 /** A platform the dino can stand on. */
@@ -92,7 +82,6 @@ export class Dino {
   private blinkUntil = 0;
   private wantsBlinkAt = 0;
   private animTick = 0;
-  private deliverUntil = 0;
   private frames: Record<FrameId, RenderedFrame>;
   private currentColor: string;
 
@@ -106,11 +95,8 @@ export class Dino {
   /** Hook to query terrain platforms. Set by main.ts after construction. */
   platformQuery: PlatformQuery | null = null;
 
-  /** Public mood — used to pick a face frame while reacting / delivering. */
+  /** Public mood — used to pick a face frame while reacting. */
   mood: Mood = "neutral";
-
-  /** Whether music is playing — makes idle animation bouncier. */
-  musicPlaying = false;
 
   constructor(private opts: DinoOptions) {
     const color = opts.color ?? "#e8e4d8";
@@ -169,21 +155,12 @@ export class Dino {
     };
   }
 
-  /** Where a carried message card should sit (just above the head). */
-  get carryAnchor(): CarryAnchor {
-    const dx = this.opts.scale * 6;
-    return {
-      x: this.x + (this.facing === 1 ? dx : -dx),
-      y: this.y - 18, // hover above the head
-    };
-  }
-
-  /** Read-only state — used by the coordinator to decide what to ask next. */
+  /** Read-only state — used by the mind to decide what to ask next. */
   get state(): Activity {
     return this.activity;
   }
 
-  /** True when the dino is free to be assigned a new goal (seek/carry). */
+  /** True when the dino can be given a new instruction. */
   get isAvailable(): boolean {
     return (
       this.activity === "idle" ||
@@ -193,38 +170,31 @@ export class Dino {
     );
   }
 
-  /** Has he reached his current target (within `eps` px)? */
+  /** Whether he's standing on something (vs. mid-air). */
+  get grounded(): boolean {
+    return this.onGround;
+  }
+
+  /** The platform he's standing on (null = viewport floor or mid-air). */
+  get standingOn(): Platform | null {
+    return this.onGround ? this.currentPlatform : null;
+  }
+
+  /** Has he reached his walk target? Horizontal only — gravity owns Y. */
   hasArrived(eps = 8): boolean {
-    return Math.hypot(this.targetX - this.x, this.targetY - this.y) <= eps;
+    return Math.abs(this.targetX - this.x) <= eps;
   }
 
   /**
-   * Ask the dino to pause and emote. Goal-driven activities (seek/carry/
-   * deliver) take priority — we don't interrupt him mid-task. Otherwise he
-   * stops where he is, shows the matching face for `durationMs`, then the
-   * normal decision loop resumes.
+   * Ask the dino to pause and emote. He stops where he is, shows the
+   * matching face for `durationMs`, then the decision loop resumes.
    */
   react(mood: Mood = "curious", durationMs = 2200): void {
-    if (
-      this.activity === "seek" ||
-      this.activity === "carry" ||
-      this.activity === "deliver"
-    ) {
-      return;
-    }
     this.mood = mood;
     this.activity = "react";
     this.targetX = this.x;
     this.targetY = this.y;
     this.nextDecisionAt = performance.now() + durationMs;
-  }
-
-  /** Tell the dino he just finished saying something — relax. */
-  finishedSpeaking(): void {
-    if (this.activity === "react") {
-      this.activity = "idle";
-      this.scheduleNextDecision(performance.now() + 1200 + Math.random() * 1800);
-    }
   }
 
   /** Hit-test in stage CSS pixels. Loose — a forgiving bounding box. */
@@ -239,14 +209,15 @@ export class Dino {
   }
 
   /**
-   * User-directed walk. Unlike seek/carry this is not a delivery goal, so the
-   * courier may interrupt it when a floating card needs attention.
+   * Walk toward x. Y is ignored for motion — he walks along whatever
+   * surface he's on, falls off edges, and gravity sorts out the rest.
+   * (The y parameter is kept so callers can express intent, e.g. clicks.)
    */
-  goTo(x: number, y: number): void {
+  goTo(x: number, _y?: number): void {
     if (!this.isAvailable) return;
     this.activity = "walk";
     this.targetX = clamp(x, this.minX, this.maxX);
-    this.targetY = clamp(y, this.minY, this.maxY);
+    this.targetY = this.y;
     this.speed = 52;
     this.mood = "curious";
     this.faceToward(this.targetX);
@@ -254,55 +225,45 @@ export class Dino {
   }
 
   /**
-   * Walk toward (x, y) with intent to grab a message. Wandering is
-   * suspended until the goal is cleared (deliver / cancel).
+   * Jump toward a surface: an impulse big enough to clear `surfaceY` (a
+   * platform top edge, in CSS px), drifting horizontally toward `x` while
+   * airborne. Landing is the normal gravity/platform check.
    */
-  goSeek(x: number, y: number): void {
-    this.activity = "seek";
-    this.targetX = clamp(x, this.minX, this.maxX);
-    this.targetY = clamp(y, this.minY, this.maxY);
-    this.speed = 70;
-    this.faceToward(this.targetX);
-    this.nextDecisionAt = Number.POSITIVE_INFINITY;
-  }
+  hopTo(x: number, surfaceY: number): void {
+    if (!this.isAvailable || !this.onGround) return;
+    const feetY = this.y + this.heightPx;
+    const rise = Math.max(0, feetY - surfaceY);
+    const impulse = Math.sqrt(2 * GRAVITY * (rise + 30));
+    this.vy = -impulse;
+    this.onGround = false;
+    this.currentPlatform = null;
 
-  /**
-   * Walk toward (x, y) while carrying a message. The caller positions the
-   * carried object via `carryAnchor` each frame.
-   */
-  goCarry(x: number, y: number): void {
-    this.activity = "carry";
+    this.activity = "walk";
     this.targetX = clamp(x, this.minX, this.maxX);
-    this.targetY = clamp(y, this.minY, this.maxY);
-    this.speed = 56;
-    this.faceToward(this.targetX);
-    this.nextDecisionAt = Number.POSITIVE_INFINITY;
-  }
-
-  /**
-   * Pause briefly to drop a message into a bin. The optional `mood` colours
-   * the face during the deliver pose — e.g. "excited" picks the cheer frame
-   * for big news, "surprised" works well for quakes, "curious" for facts.
-   */
-  startDeliver(durationMs = 420, mood: Mood = "happy"): void {
-    this.activity = "deliver";
-    this.targetX = this.x;
     this.targetY = this.y;
-    this.deliverUntil = performance.now() + durationMs;
-    this.mood = mood;
-    this.nextDecisionAt = this.deliverUntil + 200;
+    // Aim to cover the horizontal distance in roughly the airtime.
+    const airtime = ((impulse + Math.sqrt(Math.max(0, impulse * impulse - 2 * GRAVITY * rise))) / GRAVITY) || 0.5;
+    const dist = Math.abs(this.targetX - this.x);
+    this.speed = clamp(dist / Math.max(0.3, airtime), 30, 160);
+    this.mood = "excited";
+    this.faceToward(this.targetX);
+    this.nextDecisionAt = Number.POSITIVE_INFINITY;
   }
 
-  /** Cancel any active goal and return to wandering. */
-  cancelGoal(now = performance.now()): void {
-    if (
-      this.activity === "seek" ||
-      this.activity === "carry" ||
-      this.activity === "deliver"
-    ) {
-      this.activity = "idle";
-      this.scheduleNextDecision(now + 600 + Math.random() * 800);
-    }
+  /** Lie down and sleep for `ms`. The decision loop wakes him after. */
+  nap(ms: number): void {
+    if (!this.isAvailable || !this.onGround) return;
+    this.activity = "sleep";
+    this.targetX = this.x;
+    this.nextDecisionAt = performance.now() + ms;
+  }
+
+  /** Look up at the sky for `ms`. */
+  stargaze(ms: number): void {
+    if (!this.isAvailable) return;
+    this.activity = "stare";
+    this.targetX = this.x;
+    this.nextDecisionAt = performance.now() + ms;
   }
 
   update(now: number, dtMs: number): void {
@@ -312,8 +273,7 @@ export class Dino {
     if (
       now >= this.wantsBlinkAt &&
       this.activity !== "sleep" &&
-      this.activity !== "react" &&
-      this.activity !== "deliver"
+      this.activity !== "react"
     ) {
       this.blinkUntil = now + 130;
       this.scheduleNextBlink(now);
@@ -321,85 +281,72 @@ export class Dino {
 
     // ── Gravity ──────────────────────────────────────────────────────
     // Apply gravity when not on a solid surface. The dino falls until
-    // he hits a text block top-edge or the viewport floor.
+    // he hits a text block top-edge or the viewport floor. Landing only
+    // happens on the way down (vy >= 0), so hops can rise through the
+    // level of the surface they started from.
     if (!this.onGround) {
       this.vy = Math.min(this.vy + GRAVITY * dtSec, MAX_FALL_SPEED);
       this.y += this.vy * dtSec;
 
-      // Check for platform landing.
       const feetY = this.y + this.heightPx;
       const floorY = this.opts.worldHeight - GROUND_MARGIN;
       const query = this.platformQuery;
-      
-      if (query) {
-        const result = query(this.x, this.y);
-        if (feetY >= result.y) {
-          // Landed on a platform or the ground.
-          this.y = result.y - this.heightPx;
+
+      if (this.vy >= 0) {
+        if (query) {
+          // Candidates measured from the head down: generous enough that a
+          // fast fall can't tunnel through a platform between frames.
+          const result = query(this.x, this.y);
+          if (feetY >= result.y) {
+            // Landed on a platform or the ground.
+            this.y = result.y - this.heightPx;
+            this.vy = 0;
+            this.onGround = true;
+            this.currentPlatform = result.platform;
+          }
+        } else if (feetY >= floorY) {
+          this.y = floorY - this.heightPx;
           this.vy = 0;
           this.onGround = true;
-          this.currentPlatform = result.platform;
-        }
-      } else if (feetY >= floorY) {
-        this.y = floorY - this.heightPx;
-        this.vy = 0;
-        this.onGround = true;
-        this.currentPlatform = null;
-      }
-    } else {
-      // Check if we walked off the edge of a platform.
-      if (this.currentPlatform) {
-        const p = this.currentPlatform;
-        const centerX = this.x;
-        if (centerX < p.x - 8 || centerX > p.x + p.w + 8) {
-          // Walked off the edge — start falling!
-          this.onGround = false;
-          this.vy = 0;
           this.currentPlatform = null;
         }
+      }
+    } else if (this.platformQuery) {
+      // Grounded: re-query the surface under him every frame. This covers
+      // both walking off a platform edge and the masonry reflow moving a
+      // block under his feet — he follows small shifts, falls otherwise.
+      const feetY = this.y + this.heightPx;
+      const result = this.platformQuery(this.x, feetY - 8);
+      if (result.y - feetY <= 48) {
+        this.y = result.y - this.heightPx;
+        this.currentPlatform = result.platform;
+      } else {
+        this.onGround = false;
+        this.vy = 0;
+        this.currentPlatform = null;
       }
     }
 
     // ── Horizontal movement ──────────────────────────────────────────
-    // Movement is shared between wander, seek, and carry.
-    if (
-      this.activity === "walk" ||
-      this.activity === "seek" ||
-      this.activity === "carry"
-    ) {
+    // Walking moves x only; y always comes from gravity + platforms.
+    if (this.activity === "walk") {
       const dx = this.targetX - this.x;
-      const dy = this.targetY - this.y;
-      const dist = Math.hypot(dx, dy);
+      const dist = Math.abs(dx);
       const step = this.speed * dtSec;
 
       if (dist <= 1.5 || step >= dist) {
         this.x = this.targetX;
-        // Don't snap Y — let gravity handle vertical positioning.
-        if (this.activity === "walk") {
-          // Wander arrived — go idle and pick the next thing.
+        if (this.onGround) {
+          // Arrived — go idle and let the mind pick the next thing.
           this.activity = "idle";
           this.scheduleNextDecision(now + 700 + Math.random() * 2200);
         }
-        // For seek/carry, stay put with the same activity until the
-        // coordinator gives us the next instruction.
+        // Mid-air (a hop): keep the walk state until we land, so the
+        // arrival above fires on solid ground.
       } else {
-        // Move horizontally (and a bit vertically toward the target).
-        this.x += (dx / dist) * step;
-        // Vertical movement: only move toward target if we're on the ground
-        // and the target is reachable (roughly same level). If the target
-        // is much higher/lower, we rely on gravity + platform landing.
-        if (this.onGround && Math.abs(dy) > 2) {
-          // Allow some Y movement toward the target, but reduced.
-          this.y += (dy / dist) * step * 0.4;
-        }
-        if (Math.abs(dx) > 0.5) this.facing = dx >= 0 ? 1 : -1;
+        this.x += Math.sign(dx) * step;
+        if (dist > 0.5) this.facing = dx >= 0 ? 1 : -1;
       }
-    }
-
-    // Deliver state auto-completes; coordinator will see arrival via state.
-    if (this.activity === "deliver" && now >= this.deliverUntil) {
-      this.activity = "idle";
-      this.scheduleNextDecision(now + 500 + Math.random() * 600);
     }
 
     if (now >= this.nextDecisionAt) {
@@ -421,25 +368,19 @@ export class Dino {
 
     const frame = this.currentFrame();
     const img = this.facing === 1 ? frame.right : frame.left;
-    // Subtle bob: walking = 1px step bob, idle = gentle breathing or dance, stare = perfectly still
-    const moving =
-      this.activity === "walk" ||
-      this.activity === "seek" ||
-      this.activity === "carry";
+    // Subtle bob: walking = 1px step bob, idle = gentle breathing, stare = still
+    const moving = this.activity === "walk" && this.onGround;
     const idling = this.activity === "idle";
     let bob = 0;
     if (moving) {
       bob = Math.round(Math.sin(this.animTick / 110));
-    } else if (idling && this.musicPlaying) {
-      // Dance bob — faster, bouncier when music plays.
-      bob = Math.sin(this.animTick / 200) * 1.5;
     } else if (idling) {
       // Tiny 0.5px breathing oscillation — barely visible but alive.
       bob = Math.sin(this.animTick / 800) * 0.6;
     }
 
     // Squash-and-stretch on landing.
-    const falling = this.activity === "fall" || (!this.onGround && this.vy > 50);
+    const falling = !this.onGround && this.vy > 50;
     if (falling) {
       // Stretch while falling.
       ctx.save();
@@ -481,17 +422,15 @@ export class Dino {
   private currentFrame(): RenderedFrame {
     const now = performance.now();
     if (this.activity === "sleep") return this.frames.sleep;
-    if (this.activity === "fall") return this.frames.surprise;
     if (this.activity === "stare") return this.frames.look_up;
+    if (!this.onGround) {
+      // Airborne — rising reads as a happy leap, falling as surprise.
+      return this.vy < 0 ? this.frames.cheer : this.frames.surprise;
+    }
     if (now < this.blinkUntil) return this.frames.blink;
     if (this.activity === "react") return this.moodFrame();
-    if (this.activity === "deliver") return this.moodFrame();
     if (this.activity === "look") return this.frames.look_up;
-    if (
-      this.activity === "walk" ||
-      this.activity === "seek" ||
-      this.activity === "carry"
-    ) {
+    if (this.activity === "walk") {
       return Math.floor(this.animTick / 180) % 2 === 0
         ? this.frames.walk_a
         : this.frames.walk_b;
@@ -520,17 +459,12 @@ export class Dino {
     }
   }
 
+  /**
+   * The body's own fidgets between the mind's instructions. Never walks
+   * anywhere — moving with purpose is the mind's job. Just idles, glances
+   * around, occasionally emotes.
+   */
   private pickNextActivity(now: number): void {
-    // Goal-driven activities never re-roll randomly; only the coordinator
-    // (or cancelGoal) leaves them.
-    if (
-      this.activity === "seek" ||
-      this.activity === "carry" ||
-      this.activity === "deliver"
-    ) {
-      return;
-    }
-
     const r = Math.random();
     if (this.activity === "sleep" && r < 0.55) {
       // Wake from a nap with a small stretch — show the "look up" pose
@@ -540,46 +474,18 @@ export class Dino {
       this.scheduleNextDecision(now + 700 + Math.random() * 600);
       return;
     }
-    // Small spontaneous emote — keeps him from feeling robotic during long
-    // stretches with no cards to chase.
     if (r < 0.07) {
       const emotes: Mood[] = ["happy", "sad", "surprised", "curious"];
       this.react(emotes[Math.floor(Math.random() * emotes.length)], 1100 + Math.random() * 700);
       return;
     }
-    if (r < 0.6) {
-      this.activity = "walk";
-      this.pickWanderTarget();
-      this.speed = 26 + Math.random() * 28;
-      this.scheduleNextDecision(now + 12_000);
-    } else if (r < 0.82) {
+    if (r < 0.8) {
       this.activity = "idle";
-      this.scheduleNextDecision(now + 1200 + Math.random() * 2400);
-    } else if (r < 0.94) {
+      this.scheduleNextDecision(now + 1500 + Math.random() * 3000);
+    } else {
       this.activity = "look";
       this.scheduleNextDecision(now + 900 + Math.random() * 1100);
-    } else if (r < 0.97) {
-      // Prolonged sky/moon stare — contemplative moment.
-      this.activity = "stare";
-      this.scheduleNextDecision(now + 3000 + Math.random() * 4000);
-    } else {
-      this.activity = "sleep";
-      this.scheduleNextDecision(now + 4000 + Math.random() * 5000);
     }
-  }
-
-  private pickWanderTarget(): void {
-    const pickAxis = (cur: number, lo: number, hi: number): number => {
-      const range = hi - lo;
-      const span = range * (0.15 + Math.random() * 0.55);
-      const dir = Math.random() < 0.5 ? -1 : 1;
-      let next = cur + dir * span;
-      if (next < lo) next = lo + Math.random() * (range * 0.4);
-      if (next > hi) next = hi - Math.random() * (range * 0.4);
-      return next;
-    };
-    this.targetX = pickAxis(this.x, this.minX, this.maxX);
-    this.targetY = pickAxis(this.y, this.minY, this.maxY);
   }
 
   private faceToward(x: number): void {

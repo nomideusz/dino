@@ -9,6 +9,7 @@
 import { Dino } from "./dino.js";
 import { DinoAmbient } from "./dinoBehavior.js";
 import { DinoBubble } from "./dinoBubble.js";
+import { DinoMind } from "./dinoMind.js";
 import { StoryReader } from "./storyReader.js";
 import { WeatherClient } from "./weather.js";
 import { World } from "./world.js";
@@ -199,6 +200,12 @@ function startApp(stage: HTMLElement, worldCanvas: HTMLCanvasElement, dinoCanvas
     };
   };
 
+  // Zaur's mind — the routines that decide where he goes and why.
+  const mind = new DinoMind(dino, terrain, () => ({ w: cssW, h: cssH }));
+  if (import.meta.env.DEV) {
+    (window as unknown as Record<string, unknown>).__dino = { dino, mind, terrain };
+  }
+
   // Track rendered story IDs to prevent duplicates.
   const renderedStoryIds = new Set<string>();
 
@@ -210,7 +217,11 @@ function startApp(stage: HTMLElement, worldCanvas: HTMLCanvasElement, dinoCanvas
 
   // ── Reading: click a story → full article modal; archive panel ─────
 
-  terrain.onStoryClick = (story) => reader.open(story);
+  terrain.onStoryClick = (story) => {
+    reader.open(story);
+    // Zaur keeps you company: he walks over near what you're reading.
+    mind.watchReading(story.id);
+  };
   archiveBtn.addEventListener("click", () => {
     reader.openArchive([...allStories.values()]);
   });
@@ -304,26 +315,13 @@ function startApp(stage: HTMLElement, worldCanvas: HTMLCanvasElement, dinoCanvas
           textEl.classList.remove("typing-cursor");
           block.typing = false;
           terrain.noteContentChanged();
-          visitStoryQuietly(block);
+          // Zaur notices: he walks over and hops onto the fresh story.
+          mind.visitNew(block.id);
         });
       } else {
         block.typing = false;
       }
     }
-  }
-
-  /**
-   * Zaur notices a new story: he wanders over, stands on it, and reads for
-   * a moment. No bubble, no noise — he's curious, not a commentator.
-   */
-  function visitStoryQuietly(block: import("./textTerrain.js").TerrainBlock): void {
-    if (block.hidden || !dino.isAvailable) return;
-    const targetX = block.x + block.w / 2;
-    const targetY = block.y - dino.heightPx;
-    dino.goTo(targetX, targetY);
-    setTimeout(() => {
-      if (dino.isAvailable) dino.react("curious", 2600);
-    }, 3500);
   }
 
   // ── Easter eggs ──────────────────────────────────────────────────
@@ -362,6 +360,8 @@ function startApp(stage: HTMLElement, worldCanvas: HTMLCanvasElement, dinoCanvas
     if (target instanceof Element && target.closest("button, a, select, input, form, .radio-widget, .terrain-block")) {
       return;
     }
+    // The user is directing him — the mind stays out of the way for a bit.
+    mind.deferFor(12_000);
     const rect = stage.getBoundingClientRect();
     const px = ev.clientX - rect.left;
     const py = ev.clientY - rect.top;
@@ -503,31 +503,16 @@ function startApp(stage: HTMLElement, worldCanvas: HTMLCanvasElement, dinoCanvas
   });
   resizeObserver.observe(stage);
 
-  // ── Idle wandering between stories ────────────────────────────────
+  // ── Occasional idle commentary ────────────────────────────────────
+  // Movement is the mind's job now; this only speaks, rarely.
 
   setInterval(() => {
-    if (!dino.isAvailable || dino.state === "walk") return;
-    if (Math.random() > 0.4) return;
-
-    const block = terrain.randomBlock(true);
-    if (!block) {
-      dino.goTo(Math.random() * cssW, Math.random() * cssH * 0.7);
-      return;
-    }
-
-    const targetX = block.x + Math.random() * block.w;
-    const targetY = block.y - dino.heightPx;
-    dino.goTo(targetX, targetY);
-
-    // Occasional quiet commentary — rare on purpose.
-    if (Math.random() < 0.12) {
-      const hour = new Date().getHours();
-      const line = memory.getMemoryIdleComment() ?? getIdleComment(hour);
-      setTimeout(() => {
-        bubble.show(line);
-      }, 2500);
-    }
-  }, 18_000);
+    if (!dino.isAvailable) return;
+    if (Math.random() > 0.15) return;
+    const hour = new Date().getHours();
+    const line = memory.getMemoryIdleComment() ?? getIdleComment(hour);
+    bubble.show(line);
+  }, 60_000);
 
   // Track user interactions to detect "ultra-idle" (30+ min).
   let lastUserInteraction = performance.now();
@@ -629,9 +614,12 @@ function startApp(stage: HTMLElement, worldCanvas: HTMLCanvasElement, dinoCanvas
     dino.update(now, dt);
     dino.draw(dinoCtx);
 
-    // 3. Keep speech bubble overlays attached.
+    // 3. Keep speech bubble overlays attached; run the mind + ambient moods.
+    // Ambient reactions stay quiet while he's mid-routine, so a weather
+    // shiver can't derail a walk to a story.
     bubble.update();
-    ambient.update(now);
+    mind.tick(now);
+    if (!mind.busy) ambient.update(now);
 
     requestAnimationFrame(frame);
   }

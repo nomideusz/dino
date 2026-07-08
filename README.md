@@ -76,8 +76,17 @@ fetches the original page and extracts the readable paragraphs
 (`server/reader.mjs`, exposed as `GET /article/<id>` for published stories
 only), with the original link as fallback. The **archive** button in the
 bottom bar lists everything from the last two days. Category toggles filter
-what's shown (persisted per-visitor in `localStorage`); Zaur quietly walks
-over to whatever is new.
+what's shown (persisted per-visitor in `localStorage`).
+
+Zaur himself is split into a body and a mind. The body (`src/dino.ts`) knows
+how to walk (horizontal only — gravity owns the vertical), hop onto surfaces
+with a real jump arc, nap, and stargaze. The mind (`src/dinoMind.ts`) strings
+those into routines weighted by time of day: reading (walk under an unread
+story, hop on top — climbing a column via a lower block when the target is
+too high), patrolling the ground, returning to his home spot bottom-left,
+napping there (long naps at night), and stargazing. New stories jump the
+reading queue; opening the reading modal makes him wander over and keep you
+company; clicks and pokes put the mind on hold so it never fights the user.
 
 ## Configuration
 
@@ -138,7 +147,8 @@ card, no archive entry.
 src/
 ├── main.ts            # entry point + dino/terrain orchestration + SSE
 ├── world.ts           # animated sky, sun/moon, clouds, weather particles
-├── dino.ts            # dino entity + state machine + gravity
+├── dino.ts            # the body: movement verbs, gravity, frames
+├── dinoMind.ts        # the mind: day-rhythm routines (read/patrol/home/nap)
 ├── dinoBubble.ts      # ephemeral speech bubble for dino_thought events
 ├── sprite.ts          # canvas rendering for the dino frames
 ├── spriteFrames.ts    # programmatic pixel-art frames (vendored, no image files)
