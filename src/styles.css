@@ -404,6 +404,9 @@ body.zaur-cool .dino-bubble {
 
 /* ── Story reader modal + archive panel ─────────────────────────────── */
 
+/* Backdrop: blurs and dims the page. The dino canvas is raised above it
+   while reading (body.reading) so Zaur stays sharp — he came over to keep
+   you company, after all. The modal lives in a separate layer above him. */
 .reader-overlay {
   position: fixed;
   inset: 0;
@@ -411,15 +414,31 @@ body.zaur-cool .dino-bubble {
   background: rgba(0, 0, 0, 0.55);
   backdrop-filter: blur(4px);
   -webkit-backdrop-filter: blur(4px);
+  animation: reader-fade 0.25s ease;
+}
+
+.reader-layer {
+  position: fixed;
+  inset: 0;
+  z-index: 220;
   display: flex;
   align-items: center;
   justify-content: center;
   padding: 2rem 1rem;
-  animation: reader-fade 0.25s ease;
+  pointer-events: none;
 }
 
-.reader-overlay[hidden] {
+.reader-modal {
+  pointer-events: auto;
+}
+
+.reader-overlay[hidden],
+.reader-layer[hidden] {
   display: none;
+}
+
+body.reading #dino-canvas {
+  z-index: 210;
 }
 
 @keyframes reader-fade {

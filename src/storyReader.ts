@@ -9,25 +9,32 @@ import { formatWhen } from "./textTerrain.js";
 
 export class StoryReader {
   private overlay: HTMLDivElement;
+  private layer: HTMLDivElement;
   private modal: HTMLDivElement;
   private openStoryId: string | null = null;
 
   constructor(private readonly archiveUrl: string) {
+    // Backdrop and modal are siblings (not parent/child) so the dino
+    // canvas can slot between them: the page blurs behind him, he stays
+    // sharp, and the modal still covers him. `body.reading` does the
+    // z-index shuffle in CSS.
     this.overlay = document.createElement("div");
     this.overlay.className = "reader-overlay";
     this.overlay.setAttribute("hidden", "");
+
+    this.layer = document.createElement("div");
+    this.layer.className = "reader-layer";
+    this.layer.setAttribute("hidden", "");
 
     this.modal = document.createElement("div");
     this.modal.className = "reader-modal";
     this.modal.setAttribute("role", "dialog");
     this.modal.setAttribute("aria-modal", "true");
 
-    this.overlay.appendChild(this.modal);
-    document.body.appendChild(this.overlay);
+    this.layer.appendChild(this.modal);
+    document.body.append(this.overlay, this.layer);
 
-    this.overlay.addEventListener("pointerdown", (ev) => {
-      if (ev.target === this.overlay) this.close();
-    });
+    this.overlay.addEventListener("pointerdown", () => this.close());
     document.addEventListener("keydown", (ev) => {
       if (ev.key === "Escape") this.close();
     });
@@ -39,8 +46,17 @@ export class StoryReader {
 
   close(): void {
     this.overlay.setAttribute("hidden", "");
+    this.layer.setAttribute("hidden", "");
+    document.body.classList.remove("reading");
     this.openStoryId = null;
     this.modal.replaceChildren();
+  }
+
+  private show(): void {
+    this.overlay.removeAttribute("hidden");
+    this.layer.removeAttribute("hidden");
+    document.body.classList.add("reading");
+    this.modal.scrollTop = 0;
   }
 
   /** Open a single story; lazily loads the full article text. */
@@ -81,8 +97,7 @@ export class StoryReader {
       this.modal.appendChild(source);
     }
 
-    this.overlay.removeAttribute("hidden");
-    this.modal.scrollTop = 0;
+    this.show();
 
     void this.loadArticle(story, body);
   }
@@ -147,8 +162,7 @@ export class StoryReader {
       this.modal.appendChild(row);
     }
 
-    this.overlay.removeAttribute("hidden");
-    this.modal.scrollTop = 0;
+    this.show();
   }
 
   private async loadArticle(story: Story, body: HTMLElement): Promise<void> {
