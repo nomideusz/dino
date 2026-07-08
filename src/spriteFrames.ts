@@ -200,6 +200,52 @@ const SLEEP = [
   "....................",
 ];
 
+// reading — head lowered in front of the chest, eye down: studying
+// whatever he's standing on.
+const READ = [
+  "....................",
+  "....................",
+  "....................",
+  "....................",
+  "..............XXXX..",
+  ".............XXXXXX.",
+  ".............XWXXXX.",
+  "......XXXXXXXXXXXX..",
+  "....XXXXXXXXXXX.....",
+  "...XXXXXXXXXXX......",
+  "....XXXXXXXX........",
+  "......XX.X.XX.......",
+  "....XX.....XX.......",
+  "....XX....XXX.......",
+  "...XXX.....XX.......",
+  "...XX........XX.....",
+  "..XXXX.....XXXX.....",
+  "....................",
+];
+
+// sitting — upright on his haunches, tail resting on the ground, legs
+// folded. His "at home" pose.
+const SIT = [
+  "....................",
+  "....................",
+  "....................",
+  "....................",
+  "....................",
+  "....................",
+  "..........XXXXX.....",
+  ".........XWXXXXX....",
+  ".........XXXXXX.....",
+  "..........XXXX......",
+  ".........XXXXX......",
+  "........XXXXXX......",
+  ".......XXXXXXX......",
+  "..XX..XXXXXXXX......",
+  "...XXXXXXXXXXXX.....",
+  "....XXXXXXXXXXX.....",
+  "....XX....XXXX......",
+  "....................",
+];
+
 // surprise — head jolts up, two wide eyes, body slightly recoiled left so
 // the stance reads as "what was that?!" rather than the calmer LOOK_UP.
 const SURPRISE = [
@@ -258,6 +304,8 @@ export type FrameId =
   | "sad"
   | "blink"
   | "sleep"
+  | "read"
+  | "sit"
   | "surprise"
   | "cheer";
 
@@ -271,6 +319,8 @@ export const SPRITE_FRAMES: Record<FrameId, string[]> = {
   sad: SAD,
   blink: BLINK,
   sleep: SLEEP,
+  read: READ,
+  sit: SIT,
   surprise: SURPRISE,
   cheer: CHEER,
 };

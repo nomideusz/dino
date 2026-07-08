@@ -22,7 +22,7 @@ type Step =
   /** floor: get down to the ground first (naps happen on the floor, not on articles). */
   | { kind: "walk"; x: number; floor?: boolean }
   | { kind: "hop"; blockId: string }
-  | { kind: "pause"; ms: number; pose?: "curious" | "happy" }
+  | { kind: "pause"; ms: number; pose?: "curious" | "happy" | "read" | "sit" }
   | { kind: "nap"; ms: number }
   | { kind: "stare"; ms: number };
 
@@ -53,6 +53,15 @@ export class DinoMind {
     return this.steps.length > 0;
   }
 
+  /** Stories he's already been to — persisted across visits. */
+  get visitedIds(): string[] {
+    return [...this.visited];
+  }
+
+  seedVisited(ids: Iterable<string>): void {
+    for (const id of ids) this.visited.add(id);
+  }
+
   /** User did something — stay out of the way for a bit. */
   deferFor(ms: number): void {
     this.holdUntil = Math.max(this.holdUntil, performance.now() + ms);
@@ -63,11 +72,11 @@ export class DinoMind {
   /** A new story finished typing in — go see it, whatever else was planned. */
   visitNew(blockId: string): void {
     const block = this.blockById(blockId);
-    if (!block || block.hidden) return;
+    if (!block || block.hidden || block.offscreen) return;
     this.visited.add(blockId);
     this.steps = [
       ...this.approachSteps(block),
-      { kind: "pause", ms: 4_000 + Math.random() * 4_000, pose: "happy" },
+      { kind: "pause", ms: 4_000 + Math.random() * 4_000, pose: "read" },
     ];
     this.stepStarted = false;
     this.nextPlanAt = performance.now() + 10_000;
@@ -76,10 +85,10 @@ export class DinoMind {
   /** The reader opened a story — wander over and keep them company. */
   watchReading(blockId: string): void {
     const block = this.blockById(blockId);
-    if (!block || block.hidden) return;
+    if (!block || block.hidden || block.offscreen) return;
     this.steps = [
       { kind: "walk", x: block.x + block.w / 2 },
-      { kind: "pause", ms: 16_000, pose: "curious" },
+      { kind: "pause", ms: 16_000, pose: "sit" },
     ];
     this.stepStarted = false;
     this.nextPlanAt = performance.now() + 20_000;
@@ -166,7 +175,7 @@ export class DinoMind {
       }
       case "hop": {
         const block = this.blockById(step.blockId);
-        if (!block || block.hidden) {
+        if (!block || block.hidden || block.offscreen) {
           this.stepDeadline = now; // gone — plan aborts on next tick
           return;
         }
@@ -175,7 +184,11 @@ export class DinoMind {
       }
       case "pause":
         this.stepDeadline = now + step.ms + 2_000;
-        if (step.pose && Math.random() < 0.7) {
+        if (step.pose === "read") {
+          this.dino.readFor(step.ms);
+        } else if (step.pose === "sit") {
+          this.dino.sitFor(step.ms);
+        } else if (step.pose && Math.random() < 0.7) {
           this.dino.react(step.pose, Math.min(step.ms, 2_600));
         }
         break;
@@ -233,7 +246,7 @@ export class DinoMind {
       case "home":
         this.steps = [
           { kind: "walk", x: this.homeX(), floor: true },
-          { kind: "pause", ms: 6_000 + Math.random() * 8_000 },
+          { kind: "pause", ms: 6_000 + Math.random() * 8_000, pose: "sit" },
         ];
         break;
       case "nap": {
@@ -293,7 +306,7 @@ export class DinoMind {
     this.visited.add(block.id);
     this.steps = [
       ...this.approachSteps(block),
-      { kind: "pause", ms: 5_000 + Math.random() * 6_000 },
+      { kind: "pause", ms: 5_000 + Math.random() * 6_000, pose: "read" },
     ];
   }
 
@@ -330,6 +343,7 @@ export class DinoMind {
       (b) =>
         b.id !== block.id &&
         !b.hidden &&
+        !b.offscreen &&
         b.x < block.x + block.w &&
         b.x + b.w > block.x &&
         b.y > block.y + 40 &&
@@ -351,7 +365,9 @@ export class DinoMind {
   }
 
   private nextUnvisited(): TerrainBlock | null {
-    const candidates = this.terrain.blocks.filter((b) => !b.hidden && !this.visited.has(b.id));
+    const candidates = this.terrain.blocks.filter(
+      (b) => !b.hidden && !b.offscreen && !this.visited.has(b.id)
+    );
     if (candidates.length === 0) return null;
     // Prefer the most recent unread story.
     candidates.sort((a, b) => b.placedAt - a.placedAt);

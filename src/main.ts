@@ -100,6 +100,34 @@ function getIdleComment(hour: number): string {
   return pool[Math.floor(Math.random() * pool.length)];
 }
 
+// ── Zaur's own memory of where he was ────────────────────────────────
+
+const DINO_STATE_KEY = "zaur-state";
+
+interface DinoSavedState {
+  /** Where he stood, as a fraction of the viewport width. */
+  xFrac: number;
+  /** Story IDs he's already visited (so he doesn't re-read on reload). */
+  visited: string[];
+}
+
+function loadDinoState(): DinoSavedState | null {
+  try {
+    const raw = localStorage.getItem(DINO_STATE_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as Partial<DinoSavedState>;
+    if (typeof parsed.xFrac !== "number" || !Number.isFinite(parsed.xFrac)) return null;
+    return {
+      xFrac: parsed.xFrac,
+      visited: Array.isArray(parsed.visited)
+        ? parsed.visited.filter((v): v is string => typeof v === "string").slice(0, 100)
+        : [],
+    };
+  } catch {
+    return null;
+  }
+}
+
 // ── Category preferences ─────────────────────────────────────────────
 
 const CHANNELS_KEY = "dino-channels";
@@ -171,8 +199,15 @@ function startApp(stage: HTMLElement, worldCanvas: HTMLCanvasElement, dinoCanvas
     { weather: () => weather.conditions() }
   );
 
+  const savedState = loadDinoState();
+
   const dinoScale = Math.max(2, Math.min(4, Math.round(Math.min(cssW, cssH) / 240)));
-  const dino = new Dino({ scale: dinoScale, worldWidth: cssW, worldHeight: cssH });
+  const dino = new Dino({
+    scale: dinoScale,
+    worldWidth: cssW,
+    worldHeight: cssH,
+    initialXFrac: savedState?.xFrac,
+  });
 
   const bubble = new DinoBubble(stage, dino);
   const reader = new StoryReader(ARCHIVE_API_URL);
@@ -202,6 +237,22 @@ function startApp(stage: HTMLElement, worldCanvas: HTMLCanvasElement, dinoCanvas
 
   // Zaur's mind — the routines that decide where he goes and why.
   const mind = new DinoMind(dino, terrain, () => ({ w: cssW, h: cssH }));
+  if (savedState) mind.seedVisited(savedState.visited);
+
+  function saveDinoState(): void {
+    try {
+      const state: DinoSavedState = {
+        xFrac: dino.position.x / Math.max(1, cssW),
+        visited: mind.visitedIds.slice(-100),
+      };
+      localStorage.setItem(DINO_STATE_KEY, JSON.stringify(state));
+    } catch {
+      // Private mode — he just forgets, that's fine.
+    }
+  }
+  setInterval(saveDinoState, 15_000);
+  window.addEventListener("pagehide", saveDinoState);
+
   if (import.meta.env.DEV) {
     (window as unknown as Record<string, unknown>).__dino = { dino, mind, terrain };
   }
@@ -442,9 +493,13 @@ function startApp(stage: HTMLElement, worldCanvas: HTMLCanvasElement, dinoCanvas
             }
 
             if (isFirstLoad) {
-              setTimeout(() => {
-                dino.goTo(cssW / 2, cssH * 0.6);
-              }, 800);
+              // First-ever visit: wander to the middle to say hi. Returning
+              // visitors find him where they left him.
+              if (!savedState) {
+                setTimeout(() => {
+                  dino.goTo(cssW / 2, cssH * 0.6);
+                }, 800);
+              }
               isFirstLoad = false;
             }
             break;

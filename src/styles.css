@@ -192,7 +192,8 @@ body.theme-day #world-canvas {
   transform: none;
 }
 
-.terrain-block--hidden {
+.terrain-block--hidden,
+.terrain-block--offscreen {
   display: none;
 }
 

@@ -33,6 +33,8 @@ export type Activity =
   | "blink"
   | "sleep"
   | "react"
+  | "read"     // head down, studying the story he's standing on
+  | "sit"      // resting on his haunches — his at-home pose
   | "stare";   // prolonged sky/moon gazing — look_up frame, long duration
 
 export interface DinoOptions {
@@ -40,6 +42,8 @@ export interface DinoOptions {
   scale: number;
   worldWidth: number;
   worldHeight: number;
+  /** Starting x as a fraction of world width (default 0.5). */
+  initialXFrac?: number;
   /** Optional override for the body color (defaults to sprite.INK). */
   color?: string;
 }
@@ -102,7 +106,7 @@ export class Dino {
     const color = opts.color ?? "#e8e4d8";
     this.currentColor = color;
     this.frames = buildFrames(opts.scale, color);
-    this.x = opts.worldWidth * 0.5;
+    this.x = opts.worldWidth * clamp(opts.initialXFrac ?? 0.5, 0.05, 0.95);
     this.y = opts.worldHeight - GROUND_MARGIN - this.heightPx;
     this.targetX = this.x;
     this.targetY = this.y;
@@ -166,6 +170,8 @@ export class Dino {
       this.activity === "idle" ||
       this.activity === "walk" ||
       this.activity === "look" ||
+      this.activity === "read" ||
+      this.activity === "sit" ||
       this.activity === "stare"
     );
   }
@@ -266,13 +272,32 @@ export class Dino {
     this.nextDecisionAt = performance.now() + ms;
   }
 
+  /** Head down, reading whatever he's standing on, for `ms`. */
+  readFor(ms: number): void {
+    if (!this.isAvailable) return;
+    this.activity = "read";
+    this.targetX = this.x;
+    this.nextDecisionAt = performance.now() + ms;
+  }
+
+  /** Sit on his haunches for `ms`. */
+  sitFor(ms: number): void {
+    if (!this.isAvailable || !this.onGround) return;
+    this.activity = "sit";
+    this.targetX = this.x;
+    this.nextDecisionAt = performance.now() + ms;
+  }
+
   update(now: number, dtMs: number): void {
     const dtSec = dtMs / 1000;
 
-    // Blink layer — independent of motion.
+    // Blink layer — independent of motion. Skipped for the posed frames
+    // (sleep/read/sit/react) so the pose doesn't flicker back to idle.
     if (
       now >= this.wantsBlinkAt &&
       this.activity !== "sleep" &&
+      this.activity !== "read" &&
+      this.activity !== "sit" &&
       this.activity !== "react"
     ) {
       this.blinkUntil = now + 130;
@@ -417,11 +442,42 @@ export class Dino {
         Math.round(this.y + bob)
       );
     }
+
+    if (this.activity === "sleep") this.drawZzz(ctx);
+  }
+
+  /** Little pixel z's drifting up from his head while he naps. */
+  private drawZzz(ctx: CanvasRenderingContext2D): void {
+    const s = this.opts.scale;
+    // The sleeping head is on the right of the sprite; mirror when flipped.
+    const headX = this.x + (this.facing === 1 ? 1 : -1) * s * 5;
+    const headY = this.y + this.heightPx - s * 6;
+
+    ctx.save();
+    ctx.fillStyle = this.currentColor;
+    ctx.font = `${s * 3}px ui-monospace, monospace`;
+    ctx.textAlign = "center";
+
+    for (let i = 0; i < 3; i++) {
+      // Each z loops on its own phase; higher = older = fainter and bigger drift.
+      const t = ((this.animTick / 1800) + i * 0.33) % 1;
+      const alpha = t < 0.1 ? t * 10 : 1 - (t - 0.1) / 0.9;
+      ctx.globalAlpha = Math.max(0, alpha * 0.6);
+      const dx = Math.sin(t * Math.PI * 2 + i) * s * 1.5;
+      ctx.fillText(
+        "z",
+        Math.round(headX + dx + t * s * 3),
+        Math.round(headY - t * s * 9)
+      );
+    }
+    ctx.restore();
   }
 
   private currentFrame(): RenderedFrame {
     const now = performance.now();
     if (this.activity === "sleep") return this.frames.sleep;
+    if (this.activity === "read") return this.frames.read;
+    if (this.activity === "sit") return this.frames.sit;
     if (this.activity === "stare") return this.frames.look_up;
     if (!this.onGround) {
       // Airborne — rising reads as a happy leap, falling as surprise.

@@ -80,13 +80,18 @@ what's shown (persisted per-visitor in `localStorage`).
 
 Zaur himself is split into a body and a mind. The body (`src/dino.ts`) knows
 how to walk (horizontal only — gravity owns the vertical), hop onto surfaces
-with a real jump arc, nap, and stargaze. The mind (`src/dinoMind.ts`) strings
-those into routines weighted by time of day: reading (walk under an unread
-story, hop on top — climbing a column via a lower block when the target is
-too high), patrolling the ground, returning to his home spot bottom-left,
+with a real jump arc, nap (with drifting z's), stargaze, read (head-down
+pose), and sit. The mind (`src/dinoMind.ts`) strings those into routines
+weighted by time of day: reading (walk under an unread story, hop on top,
+head down — climbing a column via a lower block when the target is too
+high), patrolling the ground, returning to his home spot bottom-left to sit,
 napping there (long naps at night), and stargazing. New stories jump the
 reading queue; opening the reading modal makes him wander over and keep you
 company; clicks and pokes put the mind on hold so it never fights the user.
+His position and read-list persist in `localStorage`, so returning visitors
+find him where they left him, and columns never grow past the bottom bar —
+stories that don't fit on screen (small viewports, busy days) stay reachable
+through the archive.
 
 ## Configuration
 

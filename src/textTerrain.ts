@@ -23,6 +23,8 @@ export interface TerrainBlock {
   typing: boolean;
   /** Whether the block is hidden by the category filter. */
   hidden: boolean;
+  /** Whether the block didn't fit on screen (columns full) — archive only. */
+  offscreen: boolean;
   /** Importance score — higher = survives pruning longer. */
   importance: number;
   /** Small per-block horizontal offset so columns don't look machine-made. */
@@ -112,6 +114,7 @@ export class TextTerrain {
       placedAt: Date.now(),
       typing: isNew,
       hidden,
+      offscreen: false,
       importance: story.importance ?? 0.5,
       jitterX: (Math.random() * 2 - 1) * JITTER_X,
     };
@@ -147,7 +150,7 @@ export class TextTerrain {
     let bestBlock: TerrainBlock | null = null;
 
     for (const block of this.blocks) {
-      if (block.hidden) continue;
+      if (block.hidden || block.offscreen) continue;
       const topEdge = block.y;
       if (x >= block.x - 8 && x <= block.x + block.w + 8) {
         if (topEdge > fromY && topEdge < bestY) {
@@ -202,8 +205,12 @@ export class TextTerrain {
           (b.story.deliveredAt ?? b.placedAt) - (a.story.deliveredAt ?? a.placedAt)
       );
 
-    // Measure with the final width applied so heights are truthful.
+    // Measure with the final width applied so heights are truthful. Blocks
+    // parked off-screen last pass come back for measuring — the pass below
+    // decides again whether they fit.
     for (const block of visible) {
+      block.offscreen = false;
+      block.el.classList.remove("terrain-block--offscreen");
       block.el.style.maxWidth = `${colW}px`;
       block.el.style.width = `${colW}px`;
     }
@@ -218,6 +225,10 @@ export class TextTerrain {
         }
       }
     }
+    // Columns never grow past the bottom controls: whatever doesn't fit
+    // (always the oldest — we lay newest first) stays in the archive only.
+    const maxBottom = this.constraints.viewH - this.constraints.marginBottom;
+
     for (const block of visible) {
       const h = block.el.getBoundingClientRect().height || block.h || 100;
       let col = 0;
@@ -226,6 +237,15 @@ export class TextTerrain {
       }
       const x = marginX + col * (colW + COLUMN_GAP_X) + block.jitterX;
       const y = colHeights[col];
+
+      // Newest blocks are laid out first, so anything that overflows is
+      // old — it lives on in the archive panel only. (A typing block can
+      // land here too; the typewriter keeps running invisibly, harmless.)
+      if (y + h > maxBottom) {
+        block.offscreen = true;
+        block.el.classList.add("terrain-block--offscreen");
+        continue;
+      }
 
       // First placement snaps into position; later reflows glide (the
       // left/top transition) so the columns visibly resettle.
