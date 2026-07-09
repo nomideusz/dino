@@ -1,5 +1,5 @@
 // Minimal RSS 2.0 / Atom parser — no dependencies. Handles the small set of
-// well-formed feeds we actually consume (BBC, Guardian, Ars Technica).
+// well-formed feeds we actually consume (BBC, Guardian, NPR, Nature, etc.).
 // Extracts title / link / description / pubDate per item; CDATA and basic
 // entities are unwrapped so downstream code always sees plain UTF-8 text.
 
