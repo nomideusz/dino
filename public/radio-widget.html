@@ -334,7 +334,7 @@
       </div>
     </div>
     <div class="rb-side">
-      <button class="rb-like" id="like" type="button" aria-label="Like this track" title="Like / request this track" hidden>
+      <button class="rb-like" id="like" type="button" aria-label="Like this track" title="Like this track" hidden>
         <span class="rb-like-ico" aria-hidden="true">♥</span>
         <span id="likes"></span>
       </button>
@@ -398,9 +398,6 @@
     var streamUrl = BASE + "/listen/" + STATION + "/radio.mp3";
     var elapsed = 0, duration = 0, lastSync = 0;
     var currentSongId = "";
-    var currentRequestId = null;
-    var requestsEnabled = false;
-    var liking = false;
 
     function readLikes() {
       try {
@@ -434,11 +431,9 @@
       els.likes.textContent = count > 0 ? String(count) : "";
       els.like.hidden = !songId;
       els.like.classList.toggle("requested", !!isRequest);
-      els.like.classList.toggle("liked", count > 0 || !!isRequest);
-      els.like.disabled = !requestsEnabled || !currentRequestId;
-      els.like.title = els.like.disabled
-        ? (isRequest ? "Requested" : "Like unavailable for this track")
-        : "Like / request this track";
+      els.like.classList.toggle("liked", count > 0);
+      els.like.disabled = !songId;
+      els.like.title = "Like this track";
     }
 
     function notifyParent(listeners, likes, isRequest) {
@@ -451,29 +446,6 @@
       }, "*");
     }
 
-    async function loadRequestId(song) {
-      if (!song || !requestsEnabled) {
-        currentRequestId = null;
-        return;
-      }
-      try {
-        var r = await fetch(BASE + "/api/station/" + STATION + "/requests", { cache: "no-store" });
-        if (!r.ok) throw new Error("http " + r.status);
-        var list = await r.json();
-        currentRequestId = null;
-        for (var i = 0; i < list.length; i++) {
-          var item = list[i];
-          if (!item || !item.song) continue;
-          if (item.song.id === song.id || item.song.title === song.title || item.song.text === song.text) {
-            currentRequestId = item.request_id;
-            break;
-          }
-        }
-      } catch (e) {
-        currentRequestId = null;
-      }
-    }
-
     async function poll() {
       try {
         var r = await fetch(BASE + "/api/nowplaying/" + STATION, { cache: "no-store" });
@@ -481,7 +453,6 @@
         var d = await r.json();
         var np = d.now_playing || {}, song = np.song || {}, live = d.live || {}, st = d.station || {};
         if (st.listen_url) streamUrl = st.listen_url;
-        requestsEnabled = st.requests_enabled !== false;
 
         els.title.textContent = song.title || song.text || st.name || "Radio";
         var artist = song.artist || "";
@@ -502,10 +473,7 @@
         var cur = d.listeners && typeof d.listeners.current === "number" ? d.listeners.current : null;
         els.listeners.textContent = cur != null ? "· " + cur + " listening" : "";
 
-        if (song.id && song.id !== currentSongId) {
-          currentSongId = song.id;
-          await loadRequestId(song);
-        }
+        if (song.id) currentSongId = song.id;
         updateLikeUi(currentSongId, !!np.is_request);
         notifyParent(cur, likeCount(currentSongId), !!np.is_request);
 
@@ -548,25 +516,11 @@
     });
 
     els.like.addEventListener("click", function () {
-      if (liking || !currentRequestId || els.like.disabled) return;
-      liking = true;
-      els.like.disabled = true;
-      fetch(BASE + "/api/station/" + STATION + "/request/" + currentRequestId, {
-        method: "POST",
-        headers: { accept: "application/json" },
-      })
-        .then(function (res) {
-          if (!res.ok) throw new Error("request failed");
-          var count = bumpLike(currentSongId);
-          els.like.classList.add("liked", "requested");
-          els.likes.textContent = String(count);
-          notifyParent(null, count, true);
-        })
-        .catch(function () { /* keep UI unchanged on failure */ })
-        .finally(function () {
-          liking = false;
-          updateLikeUi(currentSongId, els.like.classList.contains("requested"));
-        });
+      if (!currentSongId || els.like.disabled) return;
+      var count = bumpLike(currentSongId);
+      els.like.classList.add("liked");
+      els.likes.textContent = String(count);
+      notifyParent(null, count, false);
     });
 
     els.audio.addEventListener("playing", function () {
