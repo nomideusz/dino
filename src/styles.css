@@ -663,8 +663,24 @@ body.reading #dino-canvas {
     gap: 0.5rem;
   }
   .radio-widget {
-    top: 0.8rem;
-    left: 0.8rem;
-    width: calc(100% - 1.6rem);
+    top: 0;
+    left: 0;
+    right: 0;
+    width: 100%;
+    padding: env(safe-area-inset-top, 0) 0 0;
+    border-radius: 0;
+    border-left: none;
+    border-right: none;
+    border-top: none;
+    box-shadow: 0 2px 16px rgba(0, 0, 0, 0.35);
+  }
+
+  .radio-header {
+    display: none;
+  }
+
+  .radio-embed {
+    height: 44px;
+    border-radius: 0;
   }
 }
