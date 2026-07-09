@@ -167,6 +167,30 @@ function startApp(stage: HTMLElement, worldCanvas: HTMLCanvasElement, dinoCanvas
   const systemMsg = document.getElementById("system-msg") as HTMLElement;
   const channelsEl = document.getElementById("channels") as HTMLElement;
   const archiveBtn = document.getElementById("archive-btn") as HTMLButtonElement;
+  const radioMeta = document.getElementById("radio-meta");
+
+  window.addEventListener("message", (event) => {
+    if (!radioMeta) return;
+    const iframe = document.querySelector<HTMLIFrameElement>(".radio-embed");
+    if (!iframe?.contentWindow || event.source !== iframe.contentWindow) return;
+    const data = event.data as {
+      type?: string;
+      listeners?: number | null;
+      likes?: number;
+      requested?: boolean;
+    };
+    if (data?.type !== "dino-radio-stats") return;
+    const parts: string[] = [];
+    if (typeof data.listeners === "number") {
+      parts.push(`${data.listeners} listening`);
+    }
+    if (typeof data.likes === "number" && data.likes > 0) {
+      parts.push(`<span class="radio-meta-likes">♥ ${data.likes}</span>`);
+    } else if (data.requested) {
+      parts.push('<span class="radio-meta-likes">♥ requested</span>');
+    }
+    radioMeta.innerHTML = parts.join(" · ");
+  });
 
   let dpr = Math.max(1, window.devicePixelRatio || 1);
   let cssW = stage.clientWidth;
