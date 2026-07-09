@@ -1,38 +1,61 @@
-// Science — Ars Technica's science desk plus NASA's Astronomy Picture of
-// the Day. APOD is a single quiet daily item; Ars provides the candidate
-// pool the editor picks from.
+// Science — Ars Technica's science desk, NASA's Astronomy Picture of the Day,
+// and desks from BBC Science, Nature, Science, and ESA. APOD is a single quiet
+// daily item; the RSS feeds provide the candidate pool the editor picks from.
 
 import { fetchFeed } from "./rss.mjs";
 import { condense, fetchJson } from "./util.mjs";
 import { feedCandidates } from "./feedShared.mjs";
 
 const ARS_SCIENCE = "https://feeds.arstechnica.com/arstechnica/science";
+const BBC_SCIENCE = "https://feeds.bbci.co.uk/news/science_and_environment/rss.xml";
+const NATURE = "https://www.nature.com/nature.rss";
+const SCIENCE_MAG = "https://www.science.org/rss/news_current.xml";
+const ESA = "https://www.esa.int/rssfeed/Our_Activities/Space_Science";
 const NASA_KEY = process.env.NASA_API_KEY ?? "DEMO_KEY";
 const APOD_URL = `https://api.nasa.gov/planetary/apod?api_key=${NASA_KEY}`;
+
+const SCIENCE_FEEDS = [
+  { url: ARS_SCIENCE, sourceName: "ars technica", idPrefix: "ars-sci" },
+  { url: BBC_SCIENCE, sourceName: "bbc news", idPrefix: "bbc-sci" },
+  { url: NATURE, sourceName: "nature", idPrefix: "nature" },
+  { url: SCIENCE_MAG, sourceName: "science", idPrefix: "science-mag" },
+  { url: ESA, sourceName: "esa", idPrefix: "esa" },
+];
 
 export const Science = {
   name: "science",
   refreshEveryMs: 45 * 60_000,
   /** @param {AbortSignal} signal */
   async fetchCandidates(signal) {
-    const [ars, apod] = await Promise.allSettled([
-      fetchFeed(ARS_SCIENCE, signal),
+    const [feeds, apod] = await Promise.allSettled([
+      fetchScienceFeeds(signal),
       fetchApod(signal),
     ]);
     const out = [];
-    if (ars.status === "fulfilled") {
-      out.push(
-        ...feedCandidates(ars.value, {
-          category: "science",
-          sourceName: "ars technica",
-          idPrefix: "ars-sci",
-        })
-      );
-    }
+    if (feeds.status === "fulfilled") out.push(...feeds.value);
     if (apod.status === "fulfilled" && apod.value) out.push(apod.value);
     return out;
   },
 };
+
+async function fetchScienceFeeds(signal) {
+  const results = await Promise.allSettled(
+    SCIENCE_FEEDS.map(({ url }) => fetchFeed(url, signal))
+  );
+  const out = [];
+  results.forEach((result, index) => {
+    if (result.status !== "fulfilled") return;
+    const { sourceName, idPrefix } = SCIENCE_FEEDS[index];
+    out.push(
+      ...feedCandidates(result.value, {
+        category: "science",
+        sourceName,
+        idPrefix,
+      })
+    );
+  });
+  return out;
+}
 
 // APOD is a daily feed — cache by UTC date so frequent refreshes don't burn
 // NASA's free quota.

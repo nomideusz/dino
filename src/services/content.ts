@@ -2,9 +2,24 @@
 // publishes only a few stories per category per day; each carries a short
 // summary so the page is readable on its own, plus a link to the source.
 
-export type Category = "tech" | "world" | "ukraine" | "science";
+export type Category =
+  | "tech"
+  | "world"
+  | "ukraine"
+  | "science"
+  | "culture"
+  | "business"
+  | "climate";
 
-export const CATEGORIES: readonly Category[] = ["tech", "world", "ukraine", "science"];
+export const CATEGORIES: readonly Category[] = [
+  "tech",
+  "world",
+  "ukraine",
+  "science",
+  "culture",
+  "business",
+  "climate",
+];
 
 export interface Story {
   /** Stable ID — used to avoid rendering the same story twice. */

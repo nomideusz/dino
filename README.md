@@ -51,10 +51,13 @@ npm start     # http://localhost:8080
 ## How the editor works
 
 1. **Sources** poll on their own schedules and fill a candidate pool:
-   - **tech** — Hacker News front page (with points/comments as signals)
-   - **world** — BBC World RSS + major earthquakes (M6.5+, USGS)
-   - **ukraine** — The Guardian's Ukraine section + BBC's "War in Ukraine" topic
-   - **science** — Ars Technica Science RSS + NASA's Astronomy Picture of the Day
+   - **tech** — Hacker News front page + BBC Technology, Ars Technica, MIT Technology Review
+   - **world** — BBC World, NPR, The Guardian, DW, New York Times + major earthquakes (M6.5+, USGS)
+   - **ukraine** — The Guardian's Ukraine section, BBC's "War in Ukraine" topic, Kyiv Independent, Ukrainska Pravda
+   - **science** — Ars Technica Science, BBC Science, Nature, Science, ESA + NASA's Astronomy Picture of the Day
+   - **culture** — The Guardian Culture, NPR Arts & Life
+   - **business** — The Guardian Business, BBC Business, NPR Business
+   - **climate** — The Guardian Environment, Carbon Brief, Yale Climate Connections
 2. **An editorial pass** runs every ~2 hours (`server/editor.mjs`). With
    `ANTHROPIC_API_KEY` set, Claude Haiku acts as editor-in-chief: it rates
    each candidate's importance (1–10) and writes a 2–3 sentence summary,
@@ -167,7 +170,7 @@ server/                # standalone npm package (@anthropic-ai/sdk)
 ├── server.mjs         # story archive, SSE stream, /article reader endpoint
 ├── editor.mjs         # candidate pool, editorial pass (Claude or heuristic)
 ├── reader.mjs         # readable-paragraph extraction for the story modal
-└── sources/           # tech (HN), world (BBC+USGS), ukraine, science, rss, musings
+└── sources/           # tech, world, ukraine, science, culture, business, climate, rss, musings
 
 navidrome/
 └── entrypoint.sh      # boots Syncthing in the background and Navidrome up front
@@ -217,12 +220,13 @@ script is `deploy/caprover.sh`.
 
 ## Credits
 
-- Tech: [Hacker News API](https://github.com/HackerNews/API)
-- World: [BBC News RSS](https://www.bbc.co.uk/news/10628494) and the
-  [USGS](https://earthquake.usgs.gov/fdsnws/event/1/) earthquake feed
-- Ukraine: [The Guardian RSS](https://www.theguardian.com/world/ukraine) and
-  BBC's War in Ukraine topic feed
-- Science: [Ars Technica RSS](https://arstechnica.com/) and [NASA APOD](https://api.nasa.gov/)
+- Tech: [Hacker News API](https://github.com/HackerNews/API), [BBC Technology RSS](https://www.bbc.co.uk/news/technology), [Ars Technica](https://arstechnica.com/), [MIT Technology Review](https://www.technologyreview.com/)
+- World: [BBC News RSS](https://www.bbc.co.uk/news/10628494), [NPR](https://www.npr.org/), [The Guardian](https://www.theguardian.com/world), [DW](https://www.dw.com/), [New York Times](https://www.nytimes.com/), and the [USGS](https://earthquake.usgs.gov/fdsnws/event/1/) earthquake feed
+- Ukraine: [The Guardian](https://www.theguardian.com/world/ukraine), BBC's War in Ukraine topic feed, [Kyiv Independent](https://kyivindependent.com/), [Ukrainska Pravda](https://www.pravda.com.ua/)
+- Science: [Ars Technica](https://arstechnica.com/), [BBC Science](https://www.bbc.co.uk/news/science_and_environment), [Nature](https://www.nature.com/), [Science](https://www.science.org/), [ESA](https://www.esa.int/), and [NASA APOD](https://api.nasa.gov/)
+- Culture: [The Guardian Culture](https://www.theguardian.com/culture), [NPR Arts & Life](https://www.npr.org/sections/arts/)
+- Business: [The Guardian Business](https://www.theguardian.com/business), [BBC Business](https://www.bbc.co.uk/news/business), [NPR Business](https://www.npr.org/sections/business/)
+- Climate: [The Guardian Environment](https://www.theguardian.com/environment), [Carbon Brief](https://www.carbonbrief.org/), [Yale Climate Connections](https://yaleclimateconnections.org/)
 - Weather: [Open-Meteo](https://open-meteo.com/) (no API key required)
 - Approximate location: [ipapi.co](https://ipapi.co/) (falls back to London)
 - Editor & musings: [Anthropic Claude](https://www.anthropic.com/) (Haiku) — optional

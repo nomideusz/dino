@@ -225,10 +225,13 @@ body.theme-day #world-canvas {
 }
 
 /* Category accent colors on the left border */
-.terrain-block.kind-tech    { border-left-color: rgba(97, 175, 239, 0.55); }
-.terrain-block.kind-world   { border-left-color: rgba(229, 192, 123, 0.55); }
-.terrain-block.kind-ukraine { border-left-color: rgba(224, 108, 117, 0.6); }
-.terrain-block.kind-science { border-left-color: rgba(152, 195, 121, 0.55); }
+.terrain-block.kind-tech     { border-left-color: rgba(97, 175, 239, 0.55); }
+.terrain-block.kind-world    { border-left-color: rgba(229, 192, 123, 0.55); }
+.terrain-block.kind-ukraine  { border-left-color: rgba(224, 108, 117, 0.6); }
+.terrain-block.kind-science  { border-left-color: rgba(152, 195, 121, 0.55); }
+.terrain-block.kind-culture  { border-left-color: rgba(198, 120, 221, 0.55); }
+.terrain-block.kind-business { border-left-color: rgba(230, 162, 60, 0.55); }
+.terrain-block.kind-climate  { border-left-color: rgba(86, 182, 194, 0.55); }
 
 /* Hover: text block lights up slightly */
 .terrain-block:hover {
@@ -576,10 +579,13 @@ body.reading #dino-canvas {
   background: rgba(var(--ink-rgb), 0.05);
 }
 
-.archive-row.kind-tech    { border-left-color: rgba(97, 175, 239, 0.55); }
-.archive-row.kind-world   { border-left-color: rgba(229, 192, 123, 0.55); }
-.archive-row.kind-ukraine { border-left-color: rgba(224, 108, 117, 0.6); }
-.archive-row.kind-science { border-left-color: rgba(152, 195, 121, 0.55); }
+.archive-row.kind-tech      { border-left-color: rgba(97, 175, 239, 0.55); }
+.archive-row.kind-world     { border-left-color: rgba(229, 192, 123, 0.55); }
+.archive-row.kind-ukraine   { border-left-color: rgba(224, 108, 117, 0.6); }
+.archive-row.kind-science   { border-left-color: rgba(152, 195, 121, 0.55); }
+.archive-row.kind-culture   { border-left-color: rgba(198, 120, 221, 0.55); }
+.archive-row.kind-business  { border-left-color: rgba(230, 162, 60, 0.55); }
+.archive-row.kind-climate   { border-left-color: rgba(86, 182, 194, 0.55); }
 
 .archive-row-meta {
   display: block;
@@ -661,6 +667,10 @@ body.reading #dino-canvas {
   }
   .bottom-bar-inner {
     gap: 0.5rem;
+  }
+  .channel-btn {
+    font-size: 0.62rem;
+    padding: 0.25rem 0.45rem;
   }
   .radio-widget {
     top: 0;
