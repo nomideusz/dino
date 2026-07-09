@@ -185,6 +185,59 @@
   .rb.playing .rb-play .ico-pause { display: block; }
   .rb.loading .rb-play { animation: spin 0.9s linear infinite; }
   @keyframes spin { to { transform: rotate(360deg) } }
+
+  /* Compact stripe — mobile embed or short iframe height from parent shell */
+  @media (max-width: 600px), (max-height: 60px) {
+    .rb {
+      min-height: 0;
+      height: 100%;
+      padding: 0 10px;
+      gap: 8px;
+      border-radius: 0;
+      border: none;
+      box-shadow: none;
+    }
+    .rb::before { display: none; }
+
+    .rb-art {
+      width: 28px;
+      height: 28px;
+      border-radius: 4px;
+    }
+
+    .rb-info {
+      display: flex;
+      flex-direction: row;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .rb-brand {
+      margin: 0;
+      flex: 0 0 auto;
+      font-size: 8px;
+    }
+    .rb-brand #listeners { display: none; }
+
+    .rb-title {
+      flex: 1 1 auto;
+      font-size: 11px;
+      font-weight: 600;
+    }
+
+    .rb-artist,
+    .rb-bar,
+    .rb-vol {
+      display: none;
+    }
+
+    .rb-play {
+      width: 32px;
+      height: 32px;
+      box-shadow: 0 0 10px color-mix(in srgb, var(--accent), transparent 55%);
+    }
+    .rb-play svg { width: 14px; height: 14px; }
+  }
 </style>
 </head>
 <body>
