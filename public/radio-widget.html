@@ -412,28 +412,47 @@
       try { localStorage.setItem(LIKES_KEY, JSON.stringify(map)); } catch (e) { /* ignore */ }
     }
 
-    function likeCount(songId) {
-      if (!songId) return 0;
+    // Older builds stored runaway counts — cap stored values at 1.
+    (function normalizeLikes() {
       var map = readLikes();
-      return Number(map[songId]) || 0;
+      var changed = false;
+      for (var id in map) {
+        if (Number(map[id]) > 1) {
+          map[id] = 1;
+          changed = true;
+        }
+      }
+      if (changed) writeLikes(map);
+    })();
+
+    function isLiked(songId) {
+      if (!songId) return false;
+      var map = readLikes();
+      return Number(map[songId]) > 0;
     }
 
-    function bumpLike(songId) {
-      if (!songId) return 0;
+    function likeCount(songId) {
+      return isLiked(songId) ? 1 : 0;
+    }
+
+    /** One like per track per browser — further clicks are ignored. */
+    function likeOnce(songId) {
+      if (!songId || isLiked(songId)) return false;
       var map = readLikes();
-      map[songId] = (Number(map[songId]) || 0) + 1;
+      map[songId] = 1;
       writeLikes(map);
-      return map[songId];
+      return true;
     }
 
     function updateLikeUi(songId, isRequest) {
-      var count = likeCount(songId);
-      els.likes.textContent = count > 0 ? String(count) : "";
+      var liked = isLiked(songId);
+      els.likes.textContent = "";
       els.like.hidden = !songId;
       els.like.classList.toggle("requested", !!isRequest);
-      els.like.classList.toggle("liked", count > 0);
-      els.like.disabled = !songId;
-      els.like.title = "Like this track";
+      els.like.classList.toggle("liked", liked);
+      els.like.disabled = !songId || liked;
+      els.like.setAttribute("aria-pressed", liked ? "true" : "false");
+      els.like.title = liked ? "You liked this track" : "Like this track";
     }
 
     function notifyParent(listeners, likes, isRequest) {
@@ -517,10 +536,12 @@
 
     els.like.addEventListener("click", function () {
       if (!currentSongId || els.like.disabled) return;
-      var count = bumpLike(currentSongId);
+      if (!likeOnce(currentSongId)) return;
       els.like.classList.add("liked");
-      els.likes.textContent = String(count);
-      notifyParent(null, count, false);
+      els.like.disabled = true;
+      els.like.setAttribute("aria-pressed", "true");
+      els.like.title = "You liked this track";
+      notifyParent(null, 1, false);
     });
 
     els.audio.addEventListener("playing", function () {

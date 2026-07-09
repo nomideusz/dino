@@ -185,7 +185,7 @@ function startApp(stage: HTMLElement, worldCanvas: HTMLCanvasElement, dinoCanvas
       parts.push(`${data.listeners} listening`);
     }
     if (typeof data.likes === "number" && data.likes > 0) {
-      parts.push(`<span class="radio-meta-likes">♥ ${data.likes}</span>`);
+      parts.push('<span class="radio-meta-likes">♥ liked</span>');
     } else if (data.requested) {
       parts.push('<span class="radio-meta-likes">♥ requested</span>');
     }
