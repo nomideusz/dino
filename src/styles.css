@@ -610,10 +610,14 @@ body.reading #dino-canvas {
   top: 1.2rem;
   left: 1.5rem;
   width: 340px;
-  background: rgba(28, 28, 35, 0.85);
+  --radio-ink: #e8e4d8;
+  --radio-ink-soft: #8a8678;
+  --radio-border: rgba(232, 228, 216, 0.15);
+  color: var(--radio-ink);
+  background: rgba(28, 28, 35, 0.92);
   backdrop-filter: blur(16px);
   -webkit-backdrop-filter: blur(16px);
-  border: 1px solid rgba(var(--ink-rgb), 0.15);
+  border: 1px solid var(--radio-border);
   border-radius: 6px;
   padding: 0.8rem;
   z-index: 100;
@@ -627,7 +631,7 @@ body.reading #dino-canvas {
 .radio-embed {
   display: block;
   width: 100%;
-  height: 118px;
+  height: 152px;
   border: 0;
   border-radius: 4px;
   background: transparent;
@@ -637,8 +641,9 @@ body.reading #dino-canvas {
   display: flex;
   justify-content: space-between;
   align-items: center;
+  gap: 0.75rem;
   margin-bottom: 0.6rem;
-  border-bottom: 1px solid rgba(var(--ink-rgb), 0.08);
+  border-bottom: 1px solid rgba(232, 228, 216, 0.08);
   padding-bottom: 0.4rem;
 }
 
@@ -650,9 +655,28 @@ body.reading #dino-canvas {
 .brand-title {
   font-size: 0.85rem;
   font-weight: 700;
-  color: var(--ink);
+  color: var(--radio-ink);
   letter-spacing: -0.02em;
   text-transform: lowercase;
+}
+
+.radio-meta {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  font-size: 0.62rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--radio-ink-soft);
+  white-space: nowrap;
+}
+
+.radio-meta:empty {
+  display: none;
+}
+
+.radio-meta-likes {
+  color: #ff7eb3;
 }
 
 /* ── Responsive ─────────────────────────────────────────────────────── */
@@ -690,7 +714,7 @@ body.reading #dino-canvas {
   }
 
   .radio-embed {
-    height: 44px;
+    height: 48px;
     border-radius: 0;
   }
 }

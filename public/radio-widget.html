@@ -9,7 +9,7 @@
 
   Embed anywhere:
     <iframe src="https://dino.zaur.app/radio-widget.html"
-            style="width:340px;height:118px;border:0" title="Radio Bartek"></iframe>
+            style="width:340px;height:152px;border:0" title="Radio Bartek"></iframe>
 
   Reuse for another AzuraCast station via query params:
     ?base=https://your.host&station=your_shortcode&accent=%23ff2e88
@@ -49,7 +49,6 @@
     position: relative;
     overflow: hidden;
   }
-  /* thin neon top edge */
   .rb::before {
     content: "";
     position: absolute;
@@ -70,7 +69,12 @@
     image-rendering: auto;
   }
 
-  .rb-info { flex: 1 1 auto; min-width: 0; }
+  .rb-main {
+    flex: 1 1 auto;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+  }
 
   .rb-brand {
     display: flex;
@@ -81,6 +85,7 @@
     text-transform: uppercase;
     color: var(--ink-soft);
     margin-bottom: 2px;
+    flex-wrap: wrap;
   }
   .rb-dot {
     width: 6px; height: 6px; border-radius: 50%;
@@ -90,6 +95,47 @@
   @keyframes pulse { 0%,100% { opacity: 1 } 50% { opacity: 0.35 } }
   .rb-status { color: var(--ink-soft); }
   .rb.live .rb-status { color: var(--live); }
+  .rb-listeners { color: var(--ink-soft); }
+
+  .rb-like {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 3px;
+    width: 42px;
+    height: 28px;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.04);
+    color: var(--ink-soft);
+    font: inherit;
+    font-size: 10px;
+    letter-spacing: 0.04em;
+    cursor: pointer;
+    padding: 0 8px;
+    transition: color 0.15s ease, border-color 0.15s ease, transform 0.1s ease;
+  }
+  .rb-like:hover {
+    color: #ff9ec8;
+    border-color: color-mix(in srgb, var(--accent), transparent 55%);
+  }
+  .rb-like:active { transform: scale(0.94); }
+  .rb-like .rb-like-ico { font-size: 12px; line-height: 1; }
+  .rb-like.liked,
+  .rb-like.requested {
+    color: var(--accent);
+    border-color: color-mix(in srgb, var(--accent), transparent 45%);
+    background: color-mix(in srgb, var(--accent), transparent 88%);
+  }
+  .rb-like:disabled { opacity: 0.45; cursor: default; }
+
+  .rb-side {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+    flex: 0 0 auto;
+  }
 
   .rb-title {
     font-size: 12.5px;
@@ -141,6 +187,7 @@
     -webkit-appearance: none;
     appearance: none;
     flex: 1 1 auto;
+    min-width: 0;
     height: 3px;
     border-radius: 2px;
     background: rgba(255, 255, 255, 0.12);
@@ -191,8 +238,8 @@
     .rb {
       min-height: 0;
       height: 100%;
-      padding: 0 10px;
-      gap: 8px;
+      padding: 0 8px;
+      gap: 6px;
       border-radius: 0;
       border: none;
       box-shadow: none;
@@ -205,31 +252,54 @@
       border-radius: 4px;
     }
 
-    .rb-info {
+    .rb-main {
       display: flex;
       flex-direction: row;
       align-items: center;
       gap: 6px;
+      min-width: 0;
     }
 
     .rb-brand {
       margin: 0;
       flex: 0 0 auto;
       font-size: 8px;
+      gap: 4px;
     }
-    .rb-brand #listeners { display: none; }
+    .rb-listeners { display: none; }
 
+    .rb-side {
+      flex-direction: row;
+      gap: 4px;
+    }
+    .rb-like {
+      width: 28px;
+      height: 28px;
+      padding: 0;
+      font-size: 0;
+    }
+    .rb-like .rb-like-ico { font-size: 12px; }
+    .rb-like #likes { display: none; }
+
+    .rb-track { flex: 1 1 auto; min-width: 0; }
     .rb-title {
-      flex: 1 1 auto;
       font-size: 11px;
       font-weight: 600;
     }
 
     .rb-artist,
-    .rb-bar,
-    .rb-vol {
+    .rb-bar {
       display: none;
     }
+
+    .rb-vol {
+      display: flex;
+      margin: 0;
+      width: 54px;
+      flex: 0 0 auto;
+      gap: 4px;
+    }
+    .rb-vol-ico { width: 10px; height: 10px; }
 
     .rb-play {
       width: 32px;
@@ -243,24 +313,32 @@
 <body>
   <div class="rb" id="rb">
     <img class="rb-art" id="art" alt="" />
-    <div class="rb-info">
+    <div class="rb-main">
       <div class="rb-brand">
         <span class="rb-dot"></span>
         <span class="rb-status" id="status">offline</span>
-        <span id="listeners"></span>
+        <span class="rb-listeners" id="listeners"></span>
       </div>
-      <div class="rb-title" id="title">—</div>
-      <div class="rb-artist" id="artist"></div>
+      <div class="rb-track">
+        <div class="rb-title" id="title">—</div>
+        <div class="rb-artist" id="artist"></div>
+      </div>
       <div class="rb-bar" id="bar"><span class="rb-fill" id="fill"></span></div>
       <div class="rb-vol">
         <svg class="rb-vol-ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3a4.5 4.5 0 0 0-2.5-4v8a4.5 4.5 0 0 0 2.5-4z"/></svg>
         <input type="range" id="volume" min="0" max="100" step="1" value="80" aria-label="Volume" />
       </div>
     </div>
-    <button class="rb-play" id="play" aria-label="Play / pause" title="Play / pause">
-      <svg class="ico-play" viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5v14l11-7z"/></svg>
-      <svg class="ico-pause" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 5h4v14H6zM14 5h4v14h-4z"/></svg>
-    </button>
+    <div class="rb-side">
+      <button class="rb-like" id="like" type="button" aria-label="Like this track" title="Like / request this track" hidden>
+        <span class="rb-like-ico" aria-hidden="true">♥</span>
+        <span id="likes"></span>
+      </button>
+      <button class="rb-play" id="play" aria-label="Play / pause" title="Play / pause">
+        <svg class="ico-play" viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5v14l11-7z"/></svg>
+        <svg class="ico-pause" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 5h4v14H6zM14 5h4v14h-4z"/></svg>
+      </button>
+    </div>
   </div>
 
   <audio id="audio" preload="none" crossorigin="anonymous"></audio>
@@ -278,6 +356,8 @@
       art: document.getElementById("art"),
       status: document.getElementById("status"),
       listeners: document.getElementById("listeners"),
+      likes: document.getElementById("likes"),
+      like: document.getElementById("like"),
       title: document.getElementById("title"),
       artist: document.getElementById("artist"),
       bar: document.getElementById("bar"),
@@ -287,8 +367,8 @@
       volume: document.getElementById("volume"),
     };
 
-    // ── Volume ───────────────────────────────────────────────────────
     var VOL_KEY = "rb-volume";
+    var LIKES_KEY = "rb-likes";
     var storedVol = null;
     try { storedVol = localStorage.getItem(VOL_KEY); } catch (e) { /* private mode */ }
     var vol = storedVol == null ? 80 : Math.max(0, Math.min(100, Number(storedVol) || 0));
@@ -301,12 +381,81 @@
 
     var streamUrl = BASE + "/listen/" + STATION + "/radio.mp3";
     var elapsed = 0, duration = 0, lastSync = 0;
+    var currentSongId = "";
+    var currentRequestId = null;
+    var requestsEnabled = false;
+    var liking = false;
 
-    // ── Now-playing polling ──────────────────────────────────────────
-    function fmt(t) {
-      t = Math.max(0, Math.floor(t || 0));
-      var m = Math.floor(t / 60), s = t % 60;
-      return m + ":" + (s < 10 ? "0" : "") + s;
+    function readLikes() {
+      try {
+        var raw = localStorage.getItem(LIKES_KEY);
+        return raw ? JSON.parse(raw) : {};
+      } catch (e) {
+        return {};
+      }
+    }
+
+    function writeLikes(map) {
+      try { localStorage.setItem(LIKES_KEY, JSON.stringify(map)); } catch (e) { /* ignore */ }
+    }
+
+    function likeCount(songId) {
+      if (!songId) return 0;
+      var map = readLikes();
+      return Number(map[songId]) || 0;
+    }
+
+    function bumpLike(songId) {
+      if (!songId) return 0;
+      var map = readLikes();
+      map[songId] = (Number(map[songId]) || 0) + 1;
+      writeLikes(map);
+      return map[songId];
+    }
+
+    function updateLikeUi(songId, isRequest) {
+      var count = likeCount(songId);
+      els.likes.textContent = count > 0 ? String(count) : "";
+      els.like.hidden = !songId;
+      els.like.classList.toggle("requested", !!isRequest);
+      els.like.classList.toggle("liked", count > 0 || !!isRequest);
+      els.like.disabled = !requestsEnabled || !currentRequestId;
+      els.like.title = els.like.disabled
+        ? (isRequest ? "Requested" : "Like unavailable for this track")
+        : "Like / request this track";
+    }
+
+    function notifyParent(listeners, likes, isRequest) {
+      if (window.parent === window) return;
+      window.parent.postMessage({
+        type: "dino-radio-stats",
+        listeners: listeners,
+        likes: likes,
+        requested: !!isRequest,
+      }, "*");
+    }
+
+    async function loadRequestId(song) {
+      if (!song || !requestsEnabled) {
+        currentRequestId = null;
+        return;
+      }
+      try {
+        var r = await fetch(BASE + "/api/station/" + STATION + "/requests", { cache: "no-store" });
+        if (!r.ok) throw new Error("http " + r.status);
+        var list = await r.json();
+        currentRequestId = null;
+        for (var i = 0; i < list.length; i++) {
+          var item = list[i];
+          if (!item || !item.song) continue;
+          if (item.song.id === song.id || item.song.title === song.title || item.song.text === song.text) {
+            currentRequestId = item.request_id;
+            break;
+          }
+        }
+      } catch (e) {
+        currentRequestId = null;
+      }
     }
 
     async function poll() {
@@ -316,6 +465,7 @@
         var d = await r.json();
         var np = d.now_playing || {}, song = np.song || {}, live = d.live || {}, st = d.station || {};
         if (st.listen_url) streamUrl = st.listen_url;
+        requestsEnabled = st.requests_enabled !== false;
 
         els.title.textContent = song.title || song.text || st.name || "Radio";
         els.artist.textContent = song.artist || "";
@@ -331,12 +481,18 @@
         var cur = d.listeners && typeof d.listeners.current === "number" ? d.listeners.current : null;
         els.listeners.textContent = cur != null ? "· " + cur + " listening" : "";
 
+        if (song.id && song.id !== currentSongId) {
+          currentSongId = song.id;
+          await loadRequestId(song);
+        }
+        updateLikeUi(currentSongId, !!np.is_request);
+        notifyParent(cur, likeCount(currentSongId), !!np.is_request);
+
         duration = np.duration || 0;
         elapsed = np.elapsed || 0;
         lastSync = Date.now();
         tick();
       } catch (e) {
-        // Leave last-known info; mark offline only if we never loaded.
         if (!els.art.src) els.status.textContent = "offline";
       }
     }
@@ -352,7 +508,6 @@
       }
     }
 
-    // ── Playback ─────────────────────────────────────────────────────
     function play() {
       rb.classList.add("loading");
       els.audio.src = streamUrl + (streamUrl.indexOf("?") < 0 ? "?" : "&") + "_=" + Date.now();
@@ -365,10 +520,34 @@
       els.audio.load();
       rb.classList.remove("playing", "loading");
     }
+
     els.play.addEventListener("click", function () {
       if (rb.classList.contains("playing") || rb.classList.contains("loading")) stop();
       else play();
     });
+
+    els.like.addEventListener("click", function () {
+      if (liking || !currentRequestId || els.like.disabled) return;
+      liking = true;
+      els.like.disabled = true;
+      fetch(BASE + "/api/station/" + STATION + "/request/" + currentRequestId, {
+        method: "POST",
+        headers: { accept: "application/json" },
+      })
+        .then(function (res) {
+          if (!res.ok) throw new Error("request failed");
+          var count = bumpLike(currentSongId);
+          els.like.classList.add("liked", "requested");
+          els.likes.textContent = String(count);
+          notifyParent(null, count, true);
+        })
+        .catch(function () { /* keep UI unchanged on failure */ })
+        .finally(function () {
+          liking = false;
+          updateLikeUi(currentSongId, els.like.classList.contains("requested"));
+        });
+    });
+
     els.audio.addEventListener("playing", function () {
       rb.classList.remove("loading");
       rb.classList.add("playing");
@@ -376,7 +555,6 @@
     els.audio.addEventListener("pause", function () { rb.classList.remove("playing", "loading"); });
     els.audio.addEventListener("error", function () { stop(); });
 
-    // ── Loop ─────────────────────────────────────────────────────────
     poll();
     setInterval(poll, 15000);
     setInterval(tick, 1000);
