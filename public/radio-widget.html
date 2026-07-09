@@ -9,7 +9,7 @@
 
   Embed anywhere:
     <iframe src="https://dino.zaur.app/radio-widget.html"
-            style="width:340px;height:152px;border:0" title="Radio Bartek"></iframe>
+            style="width:340px;height:118px;border:0" title="Radio Bartek"></iframe>
 
   Reuse for another AzuraCast station via query params:
     ?base=https://your.host&station=your_shortcode&accent=%23ff2e88
@@ -39,7 +39,7 @@
     align-items: center;
     gap: 10px;
     height: 100%;
-    min-height: 76px;
+    min-height: 0;
     padding: 10px;
     background: var(--bg);
     border: 1px solid color-mix(in srgb, var(--accent), transparent 70%);
@@ -140,10 +140,11 @@
   .rb-title {
     font-size: 12.5px;
     font-weight: 700;
-    line-height: 1.25;
-    white-space: nowrap;
+    line-height: 1.3;
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
     overflow: hidden;
-    text-overflow: ellipsis;
   }
   .rb-artist {
     font-size: 11px;
@@ -153,6 +154,7 @@
     overflow: hidden;
     text-overflow: ellipsis;
   }
+  .rb-artist:empty { display: none; }
 
   .rb-bar {
     margin-top: 6px;
@@ -233,81 +235,83 @@
   .rb.loading .rb-play { animation: spin 0.9s linear infinite; }
   @keyframes spin { to { transform: rotate(360deg) } }
 
-  /* Compact stripe — mobile embed or short iframe height from parent shell */
-  @media (max-width: 600px), (max-height: 60px) {
-    .rb {
-      min-height: 0;
-      height: 100%;
-      padding: 0 8px;
-      gap: 6px;
-      border-radius: 0;
-      border: none;
-      box-shadow: none;
-    }
-    .rb::before { display: none; }
-
-    .rb-art {
-      width: 28px;
-      height: 28px;
-      border-radius: 4px;
-    }
-
-    .rb-main {
-      display: flex;
-      flex-direction: row;
-      align-items: center;
-      gap: 6px;
-      min-width: 0;
-    }
-
-    .rb-brand {
-      margin: 0;
-      flex: 0 0 auto;
-      font-size: 8px;
-      gap: 4px;
-    }
-    .rb-listeners { display: none; }
-
-    .rb-side {
-      flex-direction: row;
-      gap: 4px;
-    }
-    .rb-like {
-      width: 28px;
-      height: 28px;
-      padding: 0;
-      font-size: 0;
-    }
-    .rb-like .rb-like-ico { font-size: 12px; }
-    .rb-like #likes { display: none; }
-
-    .rb-track { flex: 1 1 auto; min-width: 0; }
-    .rb-title {
-      font-size: 11px;
-      font-weight: 600;
-    }
-
-    .rb-artist,
-    .rb-bar {
-      display: none;
-    }
-
-    .rb-vol {
-      display: flex;
-      margin: 0;
-      width: 54px;
-      flex: 0 0 auto;
-      gap: 4px;
-    }
-    .rb-vol-ico { width: 10px; height: 10px; }
-
-    .rb-play {
-      width: 32px;
-      height: 32px;
-      box-shadow: 0 0 10px color-mix(in srgb, var(--accent), transparent 55%);
-    }
-    .rb-play svg { width: 14px; height: 14px; }
+  /* Compact stripe — parent shell uses a short iframe (mobile) or ?compact=1 */
+  html[data-layout="compact"] .rb {
+    min-height: 0;
+    height: 100%;
+    padding: 0 8px;
+    gap: 6px;
+    border-radius: 0;
+    border: none;
+    box-shadow: none;
   }
+  html[data-layout="compact"] .rb::before { display: none; }
+
+  html[data-layout="compact"] .rb-art {
+    width: 28px;
+    height: 28px;
+    border-radius: 4px;
+  }
+
+  html[data-layout="compact"] .rb-main {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    gap: 6px;
+    min-width: 0;
+  }
+
+  html[data-layout="compact"] .rb-brand {
+    margin: 0;
+    flex: 0 0 auto;
+    font-size: 8px;
+    gap: 4px;
+  }
+  html[data-layout="compact"] .rb-listeners { display: none; }
+
+  html[data-layout="compact"] .rb-side {
+    flex-direction: row;
+    gap: 4px;
+  }
+  html[data-layout="compact"] .rb-like {
+    width: 28px;
+    height: 28px;
+    padding: 0;
+    font-size: 0;
+  }
+  html[data-layout="compact"] .rb-like .rb-like-ico { font-size: 12px; }
+  html[data-layout="compact"] .rb-like #likes { display: none; }
+
+  html[data-layout="compact"] .rb-track { flex: 1 1 auto; min-width: 0; }
+  html[data-layout="compact"] .rb-title {
+    font-size: 11px;
+    font-weight: 600;
+    -webkit-line-clamp: 1;
+    white-space: nowrap;
+    display: block;
+    text-overflow: ellipsis;
+  }
+
+  html[data-layout="compact"] .rb-artist,
+  html[data-layout="compact"] .rb-bar {
+    display: none;
+  }
+
+  html[data-layout="compact"] .rb-vol {
+    display: flex;
+    margin: 0;
+    width: 54px;
+    flex: 0 0 auto;
+    gap: 4px;
+  }
+  html[data-layout="compact"] .rb-vol-ico { width: 10px; height: 10px; }
+
+  html[data-layout="compact"] .rb-play {
+    width: 32px;
+    height: 32px;
+    box-shadow: 0 0 10px color-mix(in srgb, var(--accent), transparent 55%);
+  }
+  html[data-layout="compact"] .rb-play svg { width: 14px; height: 14px; }
 </style>
 </head>
 <body>
@@ -330,7 +334,7 @@
       </div>
     </div>
     <div class="rb-side">
-      <button class="rb-like" id="like" type="button" aria-label="Like this track" title="Like / request this track" hidden>
+      <button class="rb-like" id="like" type="button" aria-label="Like this track" title="Like this track" hidden>
         <span class="rb-like-ico" aria-hidden="true">♥</span>
         <span id="likes"></span>
       </button>
@@ -351,6 +355,15 @@
     var accent = q.get("accent");
     if (accent) document.documentElement.style.setProperty("--accent", accent);
 
+    // Compact layout is driven by iframe height from the parent shell — not
+    // viewport width (desktop embed is only ~300px wide).
+    function syncLayout() {
+      var compact = q.get("compact") === "1" || window.innerHeight <= 64;
+      document.documentElement.dataset.layout = compact ? "compact" : "full";
+      // Shell header already shows listeners on desktop embeds.
+      if (els.listeners) els.listeners.hidden = window.parent !== window && !compact;
+    }
+
     var rb = document.getElementById("rb");
     var els = {
       art: document.getElementById("art"),
@@ -367,6 +380,9 @@
       volume: document.getElementById("volume"),
     };
 
+    syncLayout();
+    window.addEventListener("resize", syncLayout);
+
     var VOL_KEY = "rb-volume";
     var LIKES_KEY = "rb-likes";
     var storedVol = null;
@@ -382,9 +398,6 @@
     var streamUrl = BASE + "/listen/" + STATION + "/radio.mp3";
     var elapsed = 0, duration = 0, lastSync = 0;
     var currentSongId = "";
-    var currentRequestId = null;
-    var requestsEnabled = false;
-    var liking = false;
 
     function readLikes() {
       try {
@@ -418,11 +431,9 @@
       els.likes.textContent = count > 0 ? String(count) : "";
       els.like.hidden = !songId;
       els.like.classList.toggle("requested", !!isRequest);
-      els.like.classList.toggle("liked", count > 0 || !!isRequest);
-      els.like.disabled = !requestsEnabled || !currentRequestId;
-      els.like.title = els.like.disabled
-        ? (isRequest ? "Requested" : "Like unavailable for this track")
-        : "Like / request this track";
+      els.like.classList.toggle("liked", count > 0);
+      els.like.disabled = !songId;
+      els.like.title = "Like this track";
     }
 
     function notifyParent(listeners, likes, isRequest) {
@@ -435,29 +446,6 @@
       }, "*");
     }
 
-    async function loadRequestId(song) {
-      if (!song || !requestsEnabled) {
-        currentRequestId = null;
-        return;
-      }
-      try {
-        var r = await fetch(BASE + "/api/station/" + STATION + "/requests", { cache: "no-store" });
-        if (!r.ok) throw new Error("http " + r.status);
-        var list = await r.json();
-        currentRequestId = null;
-        for (var i = 0; i < list.length; i++) {
-          var item = list[i];
-          if (!item || !item.song) continue;
-          if (item.song.id === song.id || item.song.title === song.title || item.song.text === song.text) {
-            currentRequestId = item.request_id;
-            break;
-          }
-        }
-      } catch (e) {
-        currentRequestId = null;
-      }
-    }
-
     async function poll() {
       try {
         var r = await fetch(BASE + "/api/nowplaying/" + STATION, { cache: "no-store" });
@@ -465,10 +453,14 @@
         var d = await r.json();
         var np = d.now_playing || {}, song = np.song || {}, live = d.live || {}, st = d.station || {};
         if (st.listen_url) streamUrl = st.listen_url;
-        requestsEnabled = st.requests_enabled !== false;
 
         els.title.textContent = song.title || song.text || st.name || "Radio";
-        els.artist.textContent = song.artist || "";
+        var artist = song.artist || "";
+        if (artist && song.title && artist !== song.title) {
+          els.artist.textContent = artist;
+        } else {
+          els.artist.textContent = "";
+        }
         if (song.art && els.art.src !== song.art) els.art.src = song.art;
 
         var isLive = !!live.is_live;
@@ -481,10 +473,7 @@
         var cur = d.listeners && typeof d.listeners.current === "number" ? d.listeners.current : null;
         els.listeners.textContent = cur != null ? "· " + cur + " listening" : "";
 
-        if (song.id && song.id !== currentSongId) {
-          currentSongId = song.id;
-          await loadRequestId(song);
-        }
+        if (song.id) currentSongId = song.id;
         updateLikeUi(currentSongId, !!np.is_request);
         notifyParent(cur, likeCount(currentSongId), !!np.is_request);
 
@@ -527,25 +516,11 @@
     });
 
     els.like.addEventListener("click", function () {
-      if (liking || !currentRequestId || els.like.disabled) return;
-      liking = true;
-      els.like.disabled = true;
-      fetch(BASE + "/api/station/" + STATION + "/request/" + currentRequestId, {
-        method: "POST",
-        headers: { accept: "application/json" },
-      })
-        .then(function (res) {
-          if (!res.ok) throw new Error("request failed");
-          var count = bumpLike(currentSongId);
-          els.like.classList.add("liked", "requested");
-          els.likes.textContent = String(count);
-          notifyParent(null, count, true);
-        })
-        .catch(function () { /* keep UI unchanged on failure */ })
-        .finally(function () {
-          liking = false;
-          updateLikeUi(currentSongId, els.like.classList.contains("requested"));
-        });
+      if (!currentSongId || els.like.disabled) return;
+      var count = bumpLike(currentSongId);
+      els.like.classList.add("liked");
+      els.likes.textContent = String(count);
+      notifyParent(null, count, false);
     });
 
     els.audio.addEventListener("playing", function () {
