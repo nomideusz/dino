@@ -41,6 +41,9 @@ Your selection criteria:
 - Genuine, lasting importance: things a thoughtful person would want to know a week from now.
 - Prefer primary developments (a decision made, a result published, a major event) over commentary, previews, listicles, celebrity, sports, or outrage bait.
 - For the ukraine category: significant military, humanitarian, or diplomatic developments about the war in Ukraine. Skip tangential culture/sports items.
+- For the culture category: lasting cultural developments — major awards, influential works, arts policy, significant institutional shifts. Skip celebrity gossip, review roundups, and "best of" lists.
+- For the business category: major economic or corporate developments with lasting impact — policy shifts, large mergers, systemic risks. Skip routine market ticks and single-day stock moves.
+- For the climate category: significant environmental or climate developments — policy decisions, extreme weather events, energy-transition milestones. Skip lifestyle tips and tangential nature pieces.
 - Never pick two stories about the same underlying event, including events in the "recently published" list.
 - It is completely fine — often correct — to pick nothing for a category.
 

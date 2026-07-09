@@ -14,6 +14,9 @@ import { dirname } from "node:path";
 import { Editor } from "./editor.mjs";
 import { extractArticle } from "./reader.mjs";
 import { createMusings } from "./sources/musings.mjs";
+import { Business } from "./sources/business.mjs";
+import { Climate } from "./sources/climate.mjs";
+import { Culture } from "./sources/culture.mjs";
 import { Science } from "./sources/science.mjs";
 import { Tech } from "./sources/tech.mjs";
 import { Ukraine } from "./sources/ukraine.mjs";
@@ -24,7 +27,15 @@ const PORT = Number(process.env.PORT ?? 8080);
 const STORY_TTL_MS = 48 * 60 * 60 * 1000;
 const MAX_STORIES = 200;
 const MAX_PUBLISHED_IDS = 600;
-const CATEGORIES = new Set(["tech", "world", "ukraine", "science"]);
+const CATEGORIES = new Set([
+  "tech",
+  "world",
+  "ukraine",
+  "science",
+  "culture",
+  "business",
+  "climate",
+]);
 
 /**
  * Optional disk path for snapshotting stories between restarts (e.g.
@@ -373,6 +384,9 @@ editor.registerSource(Tech);
 editor.registerSource(WorldNews);
 editor.registerSource(Ukraine);
 editor.registerSource(Science);
+editor.registerSource(Culture);
+editor.registerSource(Business);
+editor.registerSource(Climate);
 editor.start();
 
 // ── Dino thoughts ────────────────────────────────────────────────────────
