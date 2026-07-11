@@ -49,6 +49,7 @@ const REPEAT_SHOW_INTERVAL_MS = 6 * 60_000;
 const CARD_DURATION_MS = 9_000;
 const WEATHER_FETCH_TIMEOUT_MS = 8_000;
 const FALLBACK_GEO: Geo = { lat: 51.5074, lon: -0.1278, city: "London" };
+const GEO_CACHE_KEY = "dino-geo";
 
 export class WeatherClient {
   private state: WeatherConditions | null = null;
@@ -101,21 +102,48 @@ export class WeatherClient {
 
   private async geo(): Promise<Geo> {
     if (this.cachedGeo) return this.cachedGeo;
+    // geojs.io: free, CORS-open, no key. (ipapi.co discontinued free access —
+    // it returns a paywall message, which is how everyone ended up in London.)
     try {
-      const res = await fetchWithTimeout("https://ipapi.co/json/");
+      const res = await fetchWithTimeout("https://get.geojs.io/v1/ip/geo.json");
       if (res.ok) {
-        const j = (await res.json()) as { latitude?: number; longitude?: number; city?: string };
-        if (typeof j.latitude === "number" && typeof j.longitude === "number") {
+        // geojs returns lat/lon as strings.
+        const j = (await res.json()) as {
+          latitude?: string | number;
+          longitude?: string | number;
+          city?: string;
+        };
+        const lat = Number(j.latitude);
+        const lon = Number(j.longitude);
+        if (Number.isFinite(lat) && Number.isFinite(lon)) {
           this.cachedGeo = {
-            lat: j.latitude,
-            lon: j.longitude,
+            lat,
+            lon,
             city: typeof j.city === "string" && j.city.length > 0 ? j.city : "your area",
           };
+          try {
+            localStorage.setItem(GEO_CACHE_KEY, JSON.stringify(this.cachedGeo));
+          } catch {
+            /* private mode */
+          }
           return this.cachedGeo;
         }
       }
     } catch {
-      /* fall through to default below */
+      /* fall through */
+    }
+    // A remembered location from a previous visit beats teleporting to London.
+    try {
+      const saved = localStorage.getItem(GEO_CACHE_KEY);
+      if (saved) {
+        const g = JSON.parse(saved) as Partial<Geo>;
+        if (Number.isFinite(g.lat) && Number.isFinite(g.lon) && typeof g.city === "string") {
+          this.cachedGeo = { lat: g.lat as number, lon: g.lon as number, city: g.city };
+          return this.cachedGeo;
+        }
+      }
+    } catch {
+      /* fall through */
     }
     this.cachedGeo = FALLBACK_GEO;
     return this.cachedGeo;
