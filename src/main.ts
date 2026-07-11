@@ -11,8 +11,7 @@ import { DinoAmbient } from "./dinoBehavior.js";
 import { DinoBubble } from "./dinoBubble.js";
 import { DinoMind } from "./dinoMind.js";
 import { StoryReader } from "./storyReader.js";
-import { WeatherClient } from "./weather.js";
-import { World } from "./world.js";
+import { WeatherClient, World } from "@nomideusz/zaur-world";
 import { typewriter } from "./typewriter.js";
 import { TextTerrain } from "./textTerrain.js";
 import { ZaurMemorySystem } from "./zaurMemory.js";
@@ -217,7 +216,7 @@ function startApp(stage: HTMLElement, worldCanvas: HTMLCanvasElement, dinoCanvas
 
   // ── Core systems ──────────────────────────────────────────────────
 
-  const weather = new WeatherClient(stage);
+  const weather = new WeatherClient({ cardParent: stage });
   const world = new World(
     { width: cssW, height: cssH },
     { weather: () => weather.conditions() }

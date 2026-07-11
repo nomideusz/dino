@@ -10,7 +10,7 @@
 // Zaur shivers in snow, hides from thunder, stares at the moon, etc.
 
 import type { Dino, Mood } from "./dino.js";
-import type { WeatherConditions } from "./weather.js";
+import type { WeatherConditions } from "@nomideusz/zaur-world";
 
 interface AmbientOptions {
   /** Minimum ms between two ambient triggers, so the dino isn't twitching. */
