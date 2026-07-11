@@ -76,13 +76,10 @@ body {
   image-rendering: pixelated;
   image-rendering: -moz-crisp-edges;
   image-rendering: crisp-edges;
-  /* Dim the world so text pops — the sky becomes a subtle backdrop */
-  opacity: 0.4;
+  /* Full-strength sky — the world IS the page. Text stays readable via
+     the frosted .terrain-block cards, not by muting the whole planet. */
+  opacity: 1;
   transition: opacity 2s ease;
-}
-
-body.theme-day #world-canvas {
-  opacity: 0.35;
 }
 
 /* Dino canvas: Zaur rendered above terrain so he walks on text */
@@ -104,8 +101,14 @@ body.theme-day #world-canvas {
   position: fixed;
   inset: 0;
   pointer-events: none;
-  background: radial-gradient(ellipse at center, transparent 55%, rgba(0, 0, 0, 0.35) 100%);
+  background: radial-gradient(ellipse at center, transparent 60%, rgba(0, 0, 0, 0.22) 100%);
   z-index: 2;
+  transition: opacity 2.5s ease;
+}
+
+/* Daylight barely needs a vignette — keep just a whisper of framing. */
+body.theme-day .vignette {
+  opacity: 0.4;
 }
 
 .grain {
@@ -168,7 +171,11 @@ body.theme-day #world-canvas {
   pointer-events: auto;
   cursor: pointer;
   
-  /* No background — text floats on the dimmed world */
+  /* Frosted card — keeps text readable over the full-color sky at any hour */
+  background: rgba(var(--bg-rgb), 0.55);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  border-radius: 0 6px 6px 0;
   padding: 0.55rem 0.7rem;
   border-left: 2px solid rgba(var(--ink-rgb), 0.12);
   
@@ -236,6 +243,11 @@ body.theme-day #world-canvas {
 /* Hover: text block lights up slightly */
 .terrain-block:hover {
   border-left-color: rgba(var(--ink-rgb), 0.45);
+}
+
+/* Freezing outside: a rim of frost settles on the ledges Zaur walks on. */
+body.freezing .terrain-block {
+  border-top: 2px solid rgba(240, 247, 255, 0.8);
 }
 
 .tb-meta {

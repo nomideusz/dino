@@ -14,6 +14,13 @@ export interface WeatherConditions {
   thunder: boolean;
   fog: boolean;
   isDay: boolean;
+  /** Wind speed in km/h — drives cloud drift, rain slant, gust amplitude. */
+  windSpeed: number;
+  /** Air temperature °C — drives frost caps and heat haze. */
+  temperatureC: number;
+  /** Today's real sunrise/sunset as local decimal hours, null if unknown. */
+  sunriseH: number | null;
+  sunsetH: number | null;
 }
 
 interface OpenMeteoCurrent {
@@ -22,6 +29,12 @@ interface OpenMeteoCurrent {
   weather_code: number;
   is_day?: number;
   precipitation?: number;
+  wind_speed_10m?: number;
+}
+
+interface OpenMeteoDaily {
+  sunrise?: string[];
+  sunset?: string[];
 }
 
 interface Geo {
@@ -64,15 +77,21 @@ export class WeatherClient {
       url.searchParams.set("longitude", String(geo.lon));
       url.searchParams.set(
         "current",
-        "temperature_2m,apparent_temperature,weather_code,is_day,precipitation"
+        "temperature_2m,apparent_temperature,weather_code,is_day,precipitation,wind_speed_10m"
       );
+      url.searchParams.set("daily", "sunrise,sunset");
+      url.searchParams.set("forecast_days", "1");
+      url.searchParams.set("timezone", "auto");
       const res = await fetchWithTimeout(url, { headers: { accept: "application/json" } });
       if (!res.ok) return;
-      const data = (await res.json()) as { current?: OpenMeteoCurrent };
+      const data = (await res.json()) as {
+        current?: OpenMeteoCurrent;
+        daily?: OpenMeteoDaily;
+      };
       const c = data.current;
       if (!c) return;
 
-      this.state = deriveConditions(c);
+      this.state = deriveConditions(c, data.daily);
       this.card.update(formatLine(geo.city, c), this.state);
       window.setTimeout(() => this.card.show(CARD_DURATION_MS), FIRST_SHOW_DELAY_MS);
     } catch {
@@ -113,7 +132,18 @@ async function fetchWithTimeout(input: RequestInfo | URL, init: RequestInit = {}
   }
 }
 
-function deriveConditions(c: OpenMeteoCurrent): WeatherConditions {
+/**
+ * "2026-07-11T04:34" → 4.57. With timezone=auto Open-Meteo returns local
+ * wall-clock strings, so slicing avoids any Date/timezone round-trip.
+ */
+function isoToHour(s: string | undefined): number | null {
+  if (!s || s.length < 16) return null;
+  const h = Number(s.slice(11, 13));
+  const m = Number(s.slice(14, 16));
+  return Number.isFinite(h) && Number.isFinite(m) ? h + m / 60 : null;
+}
+
+function deriveConditions(c: OpenMeteoCurrent, daily?: OpenMeteoDaily): WeatherConditions {
   const code = c.weather_code;
   const isDay = c.is_day !== 0;
   const precipMm = c.precipitation ?? 0;
@@ -144,6 +174,10 @@ function deriveConditions(c: OpenMeteoCurrent): WeatherConditions {
     thunder: [95, 96, 99].includes(code),
     fog: [45, 48].includes(code),
     isDay,
+    windSpeed: c.wind_speed_10m ?? 0,
+    temperatureC: c.temperature_2m,
+    sunriseH: isoToHour(daily?.sunrise?.[0]),
+    sunsetH: isoToHour(daily?.sunset?.[0]),
   };
 }
 

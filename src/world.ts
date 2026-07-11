@@ -3,8 +3,10 @@
 // by night, and twinkling stars that fade in at dusk and out at dawn.
 //
 // The dot grid stays as a quiet graph-paper texture in the foreground.
-// Mid-tone palette: bright enough to read as sky, muted enough that the
-// light-colored dino still pops against the horizon at every hour.
+// Vivid palette rendered at full canvas opacity: real cerulean at noon,
+// golden dawns, fiery dusks. Overcast weather desaturates the sky toward
+// gray, so the mood tracks the actual conditions outside. Text readability
+// is handled by the frosted terrain cards in CSS, not by muting the sky.
 
 import { THEME } from "./theme.js";
 import type { WeatherConditions } from "./weather.js";
@@ -33,20 +35,41 @@ interface SkyKeyframe {
 // Sky color stops across a 24-hour day. The narrator interpolates between
 // adjacent keyframes so transitions are smooth, not steppy.
 const SKY: SkyKeyframe[] = [
-  { hour:  0,   top: rgb("#161628"), bottom: rgb("#202036") }, // deep night
-  { hour:  5,   top: rgb("#3a2c48"), bottom: rgb("#5e3c54") }, // pre-dawn
-  { hour:  6.5, top: rgb("#5a4670"), bottom: rgb("#c88572") }, // dawn (mauve top → peach horizon)
-  { hour:  9,   top: rgb("#5e7a9a"), bottom: rgb("#9eb6cb") }, // morning (cool blue)
-  { hour: 13,   top: rgb("#6a90b8"), bottom: rgb("#a8c2d8") }, // midday
-  { hour: 16,   top: rgb("#7a5860"), bottom: rgb("#c8806a") }, // afternoon (warm)
-  { hour: 18,   top: rgb("#4a2e60"), bottom: rgb("#c66a52") }, // dusk
-  { hour: 20,   top: rgb("#2a1f3e"), bottom: rgb("#44284e") }, // evening (indigo)
-  { hour: 22,   top: rgb("#1a1a2c"), bottom: rgb("#22222e") }, // night
+  { hour:  0,   top: rgb("#0d1026"), bottom: rgb("#1c2144") }, // deep night (rich navy)
+  { hour:  5,   top: rgb("#2b2350"), bottom: rgb("#7a3d5e") }, // pre-dawn (indigo → plum)
+  { hour:  6.5, top: rgb("#5f56a6"), bottom: rgb("#f0956a") }, // dawn (lavender → golden peach)
+  { hour:  9,   top: rgb("#3e8ede"), bottom: rgb("#b8e0f8") }, // morning (clear blue)
+  { hour: 13,   top: rgb("#2e83e0"), bottom: rgb("#a6d9f7") }, // midday (cerulean)
+  { hour: 16,   top: rgb("#4f86c9"), bottom: rgb("#f2c88e") }, // afternoon (blue going golden)
+  { hour: 18,   top: rgb("#53387f"), bottom: rgb("#ef7440") }, // dusk (violet → fire)
+  { hour: 20,   top: rgb("#241d4e"), bottom: rgb("#64346a") }, // evening (indigo → violet)
+  { hour: 22,   top: rgb("#12132e"), bottom: rgb("#1e2242") }, // night
 ];
 
-// Sun visible in this window (decimal hours). Outside it, the moon is up.
+// Canonical sun window (decimal hours). Everything in this file — sky
+// keyframes, the sun arc, stars, birds, fireflies — is keyed to this
+// canonical clock. warpHour() maps the *real* solar day (from the weather
+// service's sunrise/sunset) onto it, so the whole world tracks the actual
+// sun with no per-feature changes: long summer evenings, short winter days.
 const SUN_RISE = 5.8;
 const SUN_SET = 18.2;
+
+/**
+ * Piecewise-linear time warp: real sunrise → SUN_RISE, real sunset →
+ * SUN_SET, night stretched/compressed to fill the rest. Identity when sun
+ * times are unknown or degenerate (polar day/night).
+ */
+function warpHour(h: number, rise: number | null, set: number | null): number {
+  if (rise == null || set == null) return h;
+  const dayLen = set - rise;
+  if (dayLen < 1 || dayLen > 23) return h;
+  if (h >= rise && h <= set) {
+    return SUN_RISE + ((h - rise) / dayLen) * (SUN_SET - SUN_RISE);
+  }
+  const nightLen = 24 - dayLen;
+  const sinceSet = (h - set + 24) % 24;
+  return (SUN_SET + (sinceSet / nightLen) * (24 - SUN_SET + SUN_RISE)) % 24;
+}
 
 const GRID_PX = 24;
 
@@ -105,6 +128,16 @@ interface Bird {
   flapPhase: number;
 }
 
+interface ShootingStar {
+  x: number;
+  y: number;
+  vx: number;
+  vy: number;
+  age: number;
+  /** Total lifetime in seconds. */
+  life: number;
+}
+
 interface Firefly {
   /** Stable per-firefly column offset. */
   bx: number;
@@ -135,6 +168,11 @@ export class World {
   /** Procedural bolt path (or null between strikes). */
   private bolt: Array<[number, number]> | null = null;
   private boltAge = 0;
+  /** One meteor at a time, minutes apart — rarity is what makes it a delight. */
+  private shooting: ShootingStar | null = null;
+  private shootingTimer = 90 + Math.random() * 240;
+  /** 0..1 — ground wetness. Builds while it rains, dries over ~5 minutes. */
+  private wetness = 0;
   private readonly weatherFn: () => WeatherConditions | null;
 
   constructor(private state: WorldState, opts: WorldOptions = {}) {
@@ -171,22 +209,37 @@ export class World {
   update(dtMs: number): void {
     const wx = this.weatherFn();
     const dt = dtMs / 1000;
-    this.tickWind(dt);
+    this.tickWind(wx, dt);
     this.tickClouds(wx, dt);
     this.tickDrops(wx, dt);
     this.tickSplashes(dt);
     this.tickLightning(wx, dt);
     this.tickBirds(dt);
+    this.tickShootingStar(dt, starAlpha(this.currentHour(wx)));
+    this.tickWetness(wx, dt);
+  }
+
+  /** The canonical (sun-warped) hour — see warpHour. */
+  private currentHour(wx: WeatherConditions | null, date = new Date()): number {
+    const hReal = date.getHours() + date.getMinutes() / 60 + date.getSeconds() / 3600;
+    return warpHour(hReal, wx?.sunriseH ?? null, wx?.sunsetH ?? null);
   }
 
   draw(ctx: CanvasRenderingContext2D): void {
     const { width, height } = this.state;
     const date = new Date();
-    const h = date.getHours() + date.getMinutes() / 60 + date.getSeconds() / 3600;
     const wx = this.weatherFn();
+    // All drawing below runs on the warped (canonical) clock — see warpHour.
+    const h = this.currentHour(wx, date);
 
-    // Sky gradient
-    const [topRGB, bottomRGB] = this.skyAt(h);
+    // Sky gradient. Overcast pulls the colors toward gray, so a clear day is
+    // genuinely blue and a stormy one genuinely leaden — weather owns the mood.
+    const cloudAlpha = wx ? cloudAlphaFor(wx) : 0;
+    let [topRGB, bottomRGB] = this.skyAt(h);
+    if (cloudAlpha > 0) {
+      topRGB = desatRGB(topRGB, cloudAlpha * 0.55);
+      bottomRGB = desatRGB(bottomRGB, cloudAlpha * 0.55);
+    }
     const grad = ctx.createLinearGradient(0, 0, 0, height);
     grad.addColorStop(0, rgbToCss(topRGB));
     grad.addColorStop(1, rgbToCss(bottomRGB));
@@ -198,17 +251,17 @@ export class World {
 
     // Aurora bands at deep night when the sky is reasonably clear — drawn
     // before stars so it reads as a soft veil behind them.
-    const cloudAlpha = wx ? cloudAlphaFor(wx) : 0;
     const auroraA = auroraAlpha(h) * (1 - cloudAlpha * 0.85);
     if (auroraA > 0.01) this.drawAurora(ctx, auroraA);
 
     // Stars (only at night-ish hours; heavy clouds also dim them).
     const sa = starAlpha(h) * (1 - cloudAlpha * 0.7);
     if (sa > 0.01) this.drawStars(ctx, sa);
+    if (this.shooting) this.drawShootingStar(ctx, sa);
 
     // Distant cloud layer sits *behind* the sun/moon for a sense of depth.
     if (this.clouds.length > 0 && cloudAlpha > 0) {
-      this.drawCloudLayer(ctx, 0, cloudAlpha, wx);
+      this.drawCloudLayer(ctx, 0, cloudAlpha, wx, h);
     }
 
     // Sun (by day) or moon (by night) arcing across the sky.
@@ -216,20 +269,33 @@ export class World {
 
     // Distant horizon silhouettes — derived from the bottom sky color so they
     // always sit *between* the sky and the foreground cloud band.
-    this.drawHills(ctx, h);
+    this.drawHills(ctx, h, bottomRGB);
+
+    // Rain-slicked ground: a low reflective sheen that lingers after a shower.
+    if (this.wetness > 0.02) this.drawWetSheen(ctx);
+
+    // Hot, clear afternoons get a faint shimmer hovering over the horizon.
+    const heat = wx ? heatFactor(wx.temperatureC, cloudAlpha, h) : 0;
+    if (heat > 0.02) this.drawHeatHaze(ctx, heat);
 
     // Mid + near cloud layers in front of the celestial body.
     if (this.clouds.length > 0 && cloudAlpha > 0) {
-      this.drawCloudLayer(ctx, 1, cloudAlpha, wx);
-      this.drawCloudLayer(ctx, 2, cloudAlpha, wx);
+      this.drawCloudLayer(ctx, 1, cloudAlpha, wx, h);
+      this.drawCloudLayer(ctx, 2, cloudAlpha, wx, h);
     }
 
-    // Pixel birds drifting across the upper sky on clear-ish days.
-    const dayA = dayCreatureAlpha(h) * (1 - cloudAlpha * 0.6);
-    if (dayA > 0.05) this.drawBirds(ctx, dayA);
+    // Pixel birds drifting across the upper sky on clear-ish days. They
+    // shelter during precipitation, and winter skies are emptier.
+    const month = date.getMonth();
+    const winter = month === 11 || month <= 1;
+    const sheltering = !!wx && wx.precipitation !== "none";
+    const dayA = sheltering ? 0 : dayCreatureAlpha(h) * (1 - cloudAlpha * 0.6);
+    if (dayA > 0.05) this.drawBirds(ctx, dayA, winter ? 0.4 : 1);
 
-    // Fireflies near the lower sky band on clear nights.
-    const flyA = fireflyAlpha(h) * (1 - cloudAlpha * 0.85);
+    // Fireflies near the lower sky band on clear nights — May to September;
+    // fireflies in a January frost would break the spell.
+    const flySeason = month >= 4 && month <= 8 ? 1 : 0;
+    const flyA = fireflyAlpha(h) * flySeason * (1 - cloudAlpha * 0.85);
     if (flyA > 0.05) this.drawFireflies(ctx, flyA);
 
     // Fog haze — gradient overlay denser near the ground.
@@ -538,15 +604,23 @@ export class World {
     layer: 0 | 1 | 2,
     alpha: number,
     wx: WeatherConditions | null,
+    h: number,
   ): void {
     const stormy = !!(wx && (wx.thunder || wx.cloudiness === 2));
     // Top edge color (lit by sky), bottom edge color (in self-shadow).
-    const topR = stormy ? 100 : 220;
-    const topG = stormy ? 102 : 222;
-    const topB = stormy ? 116 : 232;
-    const botR = stormy ? 38 : 130;
-    const botG = stormy ? 38 : 132;
-    const botB = stormy ? 50 : 152;
+    let top: RGB = stormy ? [100, 102, 116] : [220, 222, 232];
+    let bot: RGB = stormy ? [38, 38, 50] : [130, 132, 152];
+    // Golden hour: the low sun lights clouds from below, so the shadowed
+    // underside catches fire first and the top edge only blushes. Storm
+    // decks still glow, just ember-dim.
+    const glow = horizonGlowStrength(h);
+    if (glow > 0.02) {
+      const k = glow * (stormy ? 0.35 : 1);
+      bot = lerpRGB(bot, [246, 138, 96], 0.7 * k);
+      top = lerpRGB(top, [240, 186, 158], 0.35 * k);
+    }
+    const [topR, topG, topB] = top;
+    const [botR, botG, botB] = bot;
     // Distant clouds are dimmer (atmospheric perspective).
     const layerOpacity = layer === 0 ? 0.55 : layer === 1 ? 0.85 : 1.0;
     const baseAlpha = alpha * (wx?.thunder ? 0.85 : 0.55) * layerOpacity;
@@ -679,18 +753,22 @@ export class World {
     }
   }
 
-  private tickWind(dt: number): void {
-    // Two summed sines so the wind isn't perfectly periodic.
+  private tickWind(wx: WeatherConditions | null, dt: number): void {
+    // Real wind speed sets the amplitude; the two summed sines keep the
+    // gusting organic (not perfectly periodic). ~35 km/h reads as full
+    // bluster: slanted rain, hurried clouds. A calm day barely stirs.
+    const strength = 0.25 + 0.75 * Math.min(1, (wx?.windSpeed ?? 8) / 35);
     this.windPhase += dt * 0.07;
     this.wind =
-      Math.sin(this.windPhase) * 0.6 +
-      Math.sin(this.windPhase * 0.31 + 2.1) * 0.4;
+      (Math.sin(this.windPhase) * 0.6 +
+        Math.sin(this.windPhase * 0.31 + 2.1) * 0.4) * strength;
   }
 
   private tickClouds(wx: WeatherConditions | null, dt: number): void {
     if (!wx || wx.cloudiness === 0) return;
-    // A small wind nudge on top of each cloud's intrinsic drift.
-    const windNudge = this.wind * 0.003;
+    // A wind nudge on top of each cloud's intrinsic drift — with real wind
+    // speed in this.wind's amplitude, a blustery day visibly hurries them.
+    const windNudge = this.wind * 0.006;
     for (const cloud of this.clouds) {
       // Front-layer clouds are pushed harder — parallax sells depth.
       const layerScale = cloud.layer === 0 ? 0.35 : cloud.layer === 1 ? 1.0 : 1.6;
@@ -893,13 +971,12 @@ export class World {
     }
   }
 
-  private drawHills(ctx: CanvasRenderingContext2D, h: number): void {
+  private drawHills(ctx: CanvasRenderingContext2D, h: number, bottomRGB: RGB): void {
     if (this.hillsFar.length === 0) return;
     const { width, height } = this.state;
-    const [, bottomRGB] = this.skyAt(h);
-    // Pull each hill layer toward a dark indigo — keeps silhouettes reading
-    // as cool purple even when the horizon is warm peach at sunrise/sunset.
-    const bg: RGB = [0x1e, 0x16, 0x2d];
+    // Hills live: deep meadow green in daylight, cool indigo at night, with
+    // the sky's horizon color bleeding in for atmospheric perspective.
+    const bg = lerpRGB([0x1e, 0x16, 0x2d], [0x2f, 0x6b, 0x40], daylight(h));
     const farRGB = lerpRGB(bottomRGB, bg, 0.62);
     const nearRGB = lerpRGB(bottomRGB, bg, 0.84);
 
@@ -950,11 +1027,12 @@ export class World {
     }
   }
 
-  private drawBirds(ctx: CanvasRenderingContext2D, alpha: number): void {
+  private drawBirds(ctx: CanvasRenderingContext2D, alpha: number, frac = 1): void {
     if (this.birds.length === 0) return;
     const { width, height } = this.state;
     ctx.fillStyle = `rgba(20, 20, 28, ${(0.7 * alpha).toFixed(3)})`;
-    for (const b of this.birds) {
+    const count = Math.max(1, Math.round(this.birds.length * frac));
+    for (const b of this.birds.slice(0, count)) {
       const bx = b.x * width;
       const by = b.y * height;
       const flap = Math.sin(b.flapPhase);
@@ -966,6 +1044,87 @@ export class World {
         ctx.fillRect((bx | 0) - 3, by | 0, 3, 1);
         ctx.fillRect(bx | 0, by | 0, 3, 1);
       }
+    }
+  }
+
+  private tickShootingStar(dt: number, starA: number): void {
+    if (this.shooting) {
+      this.shooting.age += dt;
+      this.shooting.x += this.shooting.vx * dt;
+      this.shooting.y += this.shooting.vy * dt;
+      if (this.shooting.age > this.shooting.life) this.shooting = null;
+      return;
+    }
+    if (starA < 0.5) return; // only when the stars are properly out
+    this.shootingTimer -= dt;
+    if (this.shootingTimer <= 0) {
+      this.shootingTimer = 120 + Math.random() * 300; // one every 2–7 minutes
+      const { width, height } = this.state;
+      const speed = 420 + Math.random() * 240;
+      const angle = Math.PI * (0.12 + Math.random() * 0.16); // shallow descent
+      const dir = Math.random() < 0.5 ? 1 : -1;
+      this.shooting = {
+        x: width * (0.1 + Math.random() * 0.8),
+        y: height * (0.04 + Math.random() * 0.22),
+        vx: Math.cos(angle) * speed * dir,
+        vy: Math.sin(angle) * speed,
+        age: 0,
+        life: 0.5 + Math.random() * 0.4,
+      };
+    }
+  }
+
+  private drawShootingStar(ctx: CanvasRenderingContext2D, alpha: number): void {
+    const s = this.shooting;
+    if (!s) return;
+    // Sine envelope: flares in, burns, fades out.
+    const a = Math.sin((s.age / s.life) * Math.PI) * alpha;
+    if (a < 0.02) return;
+    const trail = 0.09; // seconds of tail behind the head
+    const tx = s.x - s.vx * trail;
+    const ty = s.y - s.vy * trail;
+    const grad = ctx.createLinearGradient(tx, ty, s.x, s.y);
+    grad.addColorStop(0, "rgba(255, 252, 240, 0)");
+    grad.addColorStop(1, `rgba(255, 252, 240, ${(0.9 * a).toFixed(3)})`);
+    ctx.strokeStyle = grad;
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.moveTo(tx, ty);
+    ctx.lineTo(s.x, s.y);
+    ctx.stroke();
+  }
+
+  private tickWetness(wx: WeatherConditions | null, dt: number): void {
+    if (wx?.precipitation === "rain") {
+      this.wetness = Math.min(1, this.wetness + dt / 20); // soaked in ~20s
+    } else {
+      this.wetness = Math.max(0, this.wetness - dt / 300); // dries over ~5 min
+    }
+  }
+
+  private drawWetSheen(ctx: CanvasRenderingContext2D): void {
+    const { width, height } = this.state;
+    const a = 0.12 * this.wetness;
+    const grad = ctx.createLinearGradient(0, height * 0.86, 0, height);
+    grad.addColorStop(0, "rgba(180, 200, 230, 0)");
+    grad.addColorStop(1, `rgba(190, 210, 240, ${a.toFixed(3)})`);
+    ctx.fillStyle = grad;
+    ctx.fillRect(0, height * 0.86, width, height * 0.14);
+  }
+
+  private drawHeatHaze(ctx: CanvasRenderingContext2D, k: number): void {
+    const { width, height } = this.state;
+    const t = performance.now() / 1000;
+    // Two soft warm bands wavering just above the horizon — cheap shimmer.
+    for (let i = 0; i < 2; i++) {
+      const y = height * (0.6 + i * 0.07) + Math.sin(t * (0.8 + i * 0.3) + i * 2) * 3;
+      const bandH = height * 0.05;
+      const grad = ctx.createLinearGradient(0, y - bandH, 0, y + bandH);
+      grad.addColorStop(0, "rgba(255, 232, 180, 0)");
+      grad.addColorStop(0.5, `rgba(255, 232, 180, ${(0.05 * k).toFixed(3)})`);
+      grad.addColorStop(1, "rgba(255, 232, 180, 0)");
+      ctx.fillStyle = grad;
+      ctx.fillRect(0, y - bandH, width, bandH * 2);
     }
   }
 
@@ -1020,6 +1179,21 @@ function auroraAlpha(h: number): number {
   if (h > 19 && h < 21) return (h - 19) / 2;
   if (h > 4 && h < 6) return 1 - (h - 4) / 2;
   return 0;
+}
+
+/** Heat-haze strength: ramps 27→35°C, needs daylight and a clear-ish sky. */
+function heatFactor(tempC: number, cloudAlpha: number, h: number): number {
+  const t = (tempC - 27) / 8;
+  if (t <= 0) return 0;
+  return Math.min(1, t) * daylight(h) * (1 - cloudAlpha);
+}
+
+/** Daylight factor, 0 at night → 1 in full day, easing through twilight. */
+function daylight(h: number): number {
+  if (h <= SUN_RISE - 1 || h >= SUN_SET + 1) return 0;
+  if (h < SUN_RISE + 1) return (h - (SUN_RISE - 1)) / 2;
+  if (h > SUN_SET - 1) return ((SUN_SET + 1) - h) / 2;
+  return 1;
 }
 
 /** Daytime creature alpha (birds) — eases in/out around the working day. */
@@ -1128,6 +1302,12 @@ function rgb(hex: string): RGB {
 
 function rgbToCss(c: RGB): string {
   return `rgb(${c[0] | 0}, ${c[1] | 0}, ${c[2] | 0})`;
+}
+
+/** Mix a color toward its own luminance gray — overcast-sky desaturation. */
+function desatRGB(c: RGB, k: number): RGB {
+  const l = c[0] * 0.299 + c[1] * 0.587 + c[2] * 0.114;
+  return lerpRGB(c, [l, l, l], k);
 }
 
 function lerpRGB(a: RGB, b: RGB, t: number): RGB {

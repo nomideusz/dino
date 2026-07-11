@@ -683,9 +683,11 @@ function startApp(stage: HTMLElement, worldCanvas: HTMLCanvasElement, dinoCanvas
       } else {
         document.body.classList.remove("theme-day");
       }
+      // Frost caps on the story ledges when it's freezing outside.
+      document.body.classList.toggle("freezing", conds.temperatureC <= 0);
     }
 
-    // 1. Draw weather particles and sky backgrounds on the world canvas (dimmed).
+    // 1. Draw weather particles and sky backgrounds on the world canvas.
     world.update(dt);
     world.draw(worldCtx);
 
