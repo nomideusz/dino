@@ -24,6 +24,6 @@
     "vite": "^5.4.10"
   },
   "dependencies": {
-    "@nomideusz/zaur-world": "^0.1.0"
+    "@nomideusz/zaur-world": "^0.2.0"
   }
 }
