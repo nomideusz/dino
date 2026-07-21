@@ -216,10 +216,15 @@ function startApp(stage: HTMLElement, worldCanvas: HTMLCanvasElement, dinoCanvas
 
   // ── Core systems ──────────────────────────────────────────────────
 
-  const weather = new WeatherClient({ cardParent: stage });
+  const weather = new WeatherClient({ weatherCard: { parent: stage } });
   const world = new World(
     { width: cssW, height: cssH },
-    { weather: () => weather.conditions() }
+    {
+      weather: () => weather.conditions(),
+      // Real night-sky stars need coordinates (Yale catalog); without this
+      // the sky falls back to the decorative seeded field.
+      location: () => weather.location(),
+    }
   );
 
   const savedState = loadDinoState();

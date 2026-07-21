@@ -9,8 +9,8 @@ importers:
   .:
     dependencies:
       '@nomideusz/zaur-world':
-        specifier: ^0.8.0
-        version: 0.8.0
+        specifier: latest
+        version: 0.12.0
     devDependencies:
       '@types/node':
         specifier: ^25.6.0
@@ -162,8 +162,8 @@ packages:
     cpu: [x64]
     os: [win32]
 
-  '@nomideusz/zaur-world@0.8.0':
-    resolution: {integrity: sha512-iFz9bJRmHZV1PCxksuFF9OnhBUIXFNbUne1nap0iJNOh6vLp1bIAG0pgtNPTeuKo0MqIlvYlyqkbMjayyK+SpA==}
+  '@nomideusz/zaur-world@0.12.0':
+    resolution: {integrity: sha512-1ZNjlzFomcYl5mryArtwZMh6w7WYODKQ8ZKN28xZmHE1Vr7RjAdBttTWN6P8aQF0c6aZlb7QVI9+OMdtuZn+7Q==}
     peerDependencies:
       react: '>=18'
     peerDependenciesMeta:
@@ -455,7 +455,7 @@ snapshots:
   '@esbuild/win32-x64@0.21.5':
     optional: true
 
-  '@nomideusz/zaur-world@0.8.0': {}
+  '@nomideusz/zaur-world@0.12.0': {}
 
   '@rollup/rollup-android-arm-eabi@4.60.2':
     optional: true
