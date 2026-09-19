@@ -36,7 +36,7 @@ interface PlacementConstraints {
   viewH: number;
   /** Horizontal margin from viewport edges. */
   marginX: number;
-  /** Vertical margin from top (radio widget space). */
+  /** Vertical margin from top. */
   marginTop: number;
   /** Margin from bottom (bottom controls). */
   marginBottom: number;
@@ -193,11 +193,6 @@ export class TextTerrain {
       Math.floor((usableW - COLUMN_GAP_X * (columnCount - 1)) / columnCount)
     );
 
-    // The radio widget floats top-left; columns that pass underneath it
-    // start below its bottom edge instead of marginTop.
-    const radio = document.getElementById("radio-widget");
-    const radioRect = radio?.getBoundingClientRect() ?? null;
-
     const visible = this.blocks
       .filter((b) => !b.hidden)
       .sort(
@@ -216,15 +211,6 @@ export class TextTerrain {
     }
 
     const colHeights = new Array<number>(columnCount).fill(marginTop);
-    if (radioRect) {
-      for (let i = 0; i < columnCount; i++) {
-        const colLeft = marginX + i * (colW + COLUMN_GAP_X);
-        const overlaps = colLeft < radioRect.right && colLeft + colW > radioRect.left;
-        if (overlaps) {
-          colHeights[i] = Math.max(colHeights[i], radioRect.bottom + 24);
-        }
-      }
-    }
     // Columns never grow past the bottom controls: whatever doesn't fit
     // (always the oldest — we lay newest first) stays in the archive only.
     const maxBottom = this.constraints.viewH - this.constraints.marginBottom;

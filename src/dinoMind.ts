@@ -7,7 +7,7 @@
 //   read      — pick a story he hasn't visited, walk under it, hop on top,
 //               stand there a while. New stories jump the queue.
 //   patrol    — amble across the ground, pausing to look up at the columns.
-//   go home   — return to his spot (bottom-left, under the radio) and sit.
+//   go home   — return to his spot (bottom-left) and sit.
 //   nap       — lie down at home. Long naps at night, catnaps by day.
 //   stargaze  — find an empty stretch of ground and stare at the sky.
 //
@@ -379,7 +379,7 @@ export class DinoMind {
   }
 
   private homeX(): number {
-    // Bottom-left, roughly under the radio widget.
+    // Bottom-left corner of the world.
     return Math.max(70, this.view().w * 0.08);
   }
 

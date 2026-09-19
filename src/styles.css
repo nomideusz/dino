@@ -615,82 +615,6 @@ body.reading #dino-canvas {
   font-weight: 600;
 }
 
-/* ── Integrated Radio Zaur Widget ───────────────────────────────────── */
-
-.radio-widget {
-  position: fixed;
-  top: 1.2rem;
-  left: 1.5rem;
-  width: 340px;
-  --radio-ink: #e8e4d8;
-  --radio-ink-soft: #8a8678;
-  --radio-border: rgba(232, 228, 216, 0.15);
-  color: var(--radio-ink);
-  background: rgba(28, 28, 35, 0.92);
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
-  border: 1px solid var(--radio-border);
-  border-radius: 6px;
-  padding: 0.8rem;
-  z-index: 100;
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
-  font-family: var(--mono-stack);
-  pointer-events: auto;
-  transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
-}
-
-/* Embedded AzuraCast player (Radio Bartek). */
-.radio-embed {
-  display: block;
-  width: 100%;
-  height: 118px;
-  border: 0;
-  border-radius: 4px;
-  background: #0e0e14;
-}
-
-.radio-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 0.75rem;
-  margin-bottom: 0.6rem;
-  border-bottom: 1px solid rgba(232, 228, 216, 0.08);
-  padding-bottom: 0.4rem;
-}
-
-.radio-brand {
-  display: flex;
-  flex-direction: column;
-}
-
-.brand-title {
-  font-size: 0.85rem;
-  font-weight: 700;
-  color: var(--radio-ink);
-  letter-spacing: -0.02em;
-  text-transform: lowercase;
-}
-
-.radio-meta {
-  display: flex;
-  align-items: center;
-  gap: 0.55rem;
-  font-size: 0.62rem;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: var(--radio-ink-soft);
-  white-space: nowrap;
-}
-
-.radio-meta:empty {
-  display: none;
-}
-
-.radio-meta-likes {
-  color: #ff7eb3;
-}
-
 /* ── Responsive ─────────────────────────────────────────────────────── */
 
 @media (max-width: 600px) {
@@ -707,26 +631,5 @@ body.reading #dino-canvas {
   .channel-btn {
     font-size: 0.62rem;
     padding: 0.25rem 0.45rem;
-  }
-  .radio-widget {
-    top: 0;
-    left: 0;
-    right: 0;
-    width: 100%;
-    padding: env(safe-area-inset-top, 0) 0 0;
-    border-radius: 0;
-    border-left: none;
-    border-right: none;
-    border-top: none;
-    box-shadow: 0 2px 16px rgba(0, 0, 0, 0.35);
-  }
-
-  .radio-header {
-    display: none;
-  }
-
-  .radio-embed {
-    height: 48px;
-    border-radius: 0;
   }
 }

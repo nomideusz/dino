@@ -1,8 +1,14 @@
 # 🦖 dino — a quiet page of important news
 
+> **Retired (2026-07-27).** `dino.zaur.app` now serves the
+> [zaur-world](https://github.com/nomideusz/zaur-world) weather page (its
+> `demo/` app). The news editor, `dino-archive`, and this frontend are no
+> longer deployed. Zaur the dinosaur will return as an ambient companion in
+> zaur-world; his body/mind code (`src/dino.ts`, `src/dinoMind.ts`,
+> `src/sprite.ts`, `src/spriteFrames.ts`) is the reference for that port.
+
 Dino lives in his world, which starts empty. There is no prompt, no feed, no
-sign-in, no ads — just a minimal radio in the corner and, a few times a day,
-a story that actually matters. A server-side editor reads a handful of
+sign-in, no ads — just, a few times a day, a story that actually matters. A server-side editor reads a handful of
 quality sources and publishes only the important ones, each with a short calm
 summary. Published stories persist for two days as scattered text blocks;
 Zaur, a tiny pixel dinosaur, walks between them, stands on them, and keeps
@@ -128,17 +134,6 @@ Navidrome service runtime variables (the bundled image):
 The frontend reads `VITE_ARCHIVE_URL` at build time, so changing it requires a
 new frontend build/deploy.
 
-## Dino radio
-
-The radio widget (top-left) embeds our real station, **Radio Bartek**, via
-AzuraCast's public embed iframe (`radiobartek.com/public/radio_bartek/embed`).
-The station and its library are managed in AzuraCast; dino just hosts the widget.
-
-> The previous custom radio — an archive-server `/radio/*` Subsonic proxy in
-> front of Navidrome, with per-channel playlists and pace — has been removed.
-> `music.zaur.app` (Navidrome) is still a live, independently-used music server;
-> it is simply no longer wired into dino's radio.
-
 ## Dino thoughts (speech bubble)
 
 Zaur is the soul of the page, not a commentator. Every ~5–10 minutes the
@@ -230,7 +225,6 @@ script is `deploy/caprover.sh`.
 - Weather: [Open-Meteo](https://open-meteo.com/) (no API key required)
 - Approximate location: [ipapi.co](https://ipapi.co/) (falls back to London)
 - Editor & musings: [Anthropic Claude](https://www.anthropic.com/) (Haiku) — optional
-- Radio: [Radio Bartek](https://radiobartek.com/) on [AzuraCast](https://www.azuracast.com/) (embedded widget)
 
 ## License
 
